@@ -1,0 +1,682 @@
+Great — below is a single, comprehensive **textual cheat-sheet** that combines and explains **every concept** used across your MySQL and MongoDB exercises. It’s written as a focused reference: definitions, why it matters, how to implement it (small syntax snippet), behaviour notes, common errors, best practices, and short viva-style Q&As. I kept each concept compact but detailed so you can study, copy into your lab journal, or paste into notes.
+
+Use this as your master reference for the practicals you did: relational schema & constraints, DML/queries, stored procedures & cursors, transactions & error handling, views/indexes/sequences, and MongoDB CRUD / aggregation / MapReduce.
+
+---
+
+# Student & DB Concepts — Full Theory + Syntax Cheatsheet
+
+---
+
+## Table of contents (quick)
+
+1. Relational fundamentals (tables, DDL, data types)
+2. Constraints (PK, FK, UNIQUE, NOT NULL, CHECK)
+3. DML (INSERT, SELECT, UPDATE, DELETE) & Joins
+4. Aggregation & Grouping (AVG, SUM, COUNT, GROUP BY, HAVING)
+5. Views (what, why, syntax, limitations)
+6. Indexes (purpose, types, create, explain)
+7. Sequences & AUTO_INCREMENT (difference, syntax)
+8. Stored Procedures & Functions (MySQL)
+9. Cursors (declaration, loop pattern, end detection)
+10. Transactions & Exception Handling (START/COMMIT/ROLLBACK, handlers, SIGNAL)
+11. Practical pattern examples (classification, merge without cursor, fines procedure)
+12. MongoDB fundamentals (documents, collections, CRUD)
+13. MongoDB query operators (comparisons, logical, array, projection)
+14. MongoDB updates (update operators, upsert, multi)
+15. MongoDB aggregation framework (pipeline stages, examples)
+16. MongoDB MapReduce (map, reduce, out) + why prefer aggregation
+17. MongoDB indexing & collation
+18. Performance & best practices (SQL & MongoDB)
+19. Common exam/viva questions with short answers
+
+---
+
+## 1. Relational fundamentals (Tables & DDL)
+
+**What it is:** Tables are structured collections of rows (records) with named columns (attributes). Use DDL to define schema.
+
+**Why it matters:** Schema enforces data structure, types, and relationships in RDBMS.
+
+**Key syntax (MySQL):**
+
+```sql
+CREATE DATABASE StudentDB;
+USE StudentDB;
+
+CREATE TABLE Students (
+  student_id INT AUTO_INCREMENT PRIMARY KEY,
+  student_name VARCHAR(100) NOT NULL,
+  class VARCHAR(20),
+  address VARCHAR(150),
+  grades DECIMAL(5,2),
+  attendance_percent DECIMAL(5,2),
+  enrollment_date DATE
+);
+```
+
+**Notes:**
+
+* `VARCHAR(n)` is variable-length string.
+* `DECIMAL(m,n)` stores exact numeric values; `m` total digits, `n` decimals.
+* `DATE` stores `YYYY-MM-DD`.
+* `AUTO_INCREMENT` automatically generates numeric PK values (MySQL).
+* Always declare `NOT NULL` for required columns.
+
+---
+
+## 2. Constraints (PK, FK, UNIQUE, NOT NULL, CHECK)
+
+**Primary Key (PK):** Unique identifier for rows.
+
+```sql
+student_id INT PRIMARY KEY
+```
+
+**Foreign Key (FK):** Enforces referential integrity between tables.
+
+```sql
+CREATE TABLE account (
+  acc_no INT PRIMARY KEY,
+  branch_name VARCHAR(50),
+  FOREIGN KEY (branch_name) REFERENCES branch(branch_name)
+);
+```
+
+**UNIQUE:** Ensures column values are unique.
+
+```sql
+ALTER TABLE Students ADD UNIQUE (student_name);
+```
+
+**NOT NULL:** Column cannot be NULL.
+
+**CHECK:** Validate values (MySQL 8+ supports enforced checks).
+
+```sql
+balance DECIMAL(12,2) CHECK (balance >= 0)
+```
+
+**Notes & caveats:**
+
+* FK requires referenced table exists.
+* CHECK enforcement varies by engine/version.
+* Choose PK carefully (surrogate id vs natural key).
+
+---
+
+## 3. DML (INSERT / SELECT / UPDATE / DELETE) & Joins
+
+**Insert rows:**
+
+```sql
+INSERT INTO Students (student_name, class, grades) VALUES ('Alice','FE',85.5);
+```
+
+**Select rows:**
+
+```sql
+SELECT student_name, grades FROM Students WHERE grades > 80 ORDER BY student_name;
+```
+
+**Update rows:**
+
+```sql
+UPDATE Students SET grades = 90 WHERE student_id = 1;
+```
+
+**Delete rows:**
+
+```sql
+DELETE FROM Students WHERE student_id = 10;
+```
+
+**Joins (example):**
+
+```sql
+SELECT d.cust_name, a.balance
+FROM depositor d
+JOIN account a ON d.acc_no = a.acc_no;
+```
+
+**Union:**
+
+```sql
+SELECT cust_name FROM depositor
+UNION
+SELECT cust_name FROM borrower;
+```
+
+`UNION` removes duplicates; `UNION ALL` retains.
+
+---
+
+## 4. Aggregation & Grouping
+
+**Aggregate functions:** `AVG()`, `SUM()`, `COUNT()`, `MIN()`, `MAX()`.
+
+**Group example:**
+
+```sql
+SELECT branch_name, AVG(balance) AS avg_bal
+FROM account
+GROUP BY branch_name;
+```
+
+**Having (filter groups):**
+
+```sql
+SELECT branch_name, AVG(balance) AS avg_bal
+FROM account
+GROUP BY branch_name
+HAVING AVG(balance) > 12000;
+```
+
+**Notes:** Use `GROUP BY` for grouped calculations; `HAVING` filters group results.
+
+---
+
+## 5. Views
+
+**What:** Virtual table defined by a stored `SELECT`. No storage (unless materialized).
+
+**Syntax:**
+
+```sql
+CREATE VIEW Student_Performance_View AS
+SELECT student_id, student_name, grades, attendance_percent,
+  CASE WHEN attendance_percent >= 90 THEN 'Excellent' WHEN attendance_percent BETWEEN 75 AND 89 THEN 'Good' ELSE 'Poor' END AS Attendance_Remark
+FROM Students;
+```
+
+**Why:** Simplify frequent queries, restrict columns, provide derived data.
+
+**Limitations:**
+
+* Updatable views require simple SELECTs (no aggregates).
+* Performance depends on underlying query.
+
+---
+
+## 6. Indexes
+
+**Why:** Speed up SELECT queries and ORDER BY; trading CPU & disk space for read performance.
+
+**Create index:**
+
+```sql
+CREATE INDEX idx_student_name ON Students(student_name);
+```
+
+**Show indexes:**
+
+```sql
+SHOW INDEXES FROM Students;
+```
+
+**Notes:**
+
+* Primary key creates a unique index.
+* Use compound indexes to satisfy filter + sort.
+* Too many indexes slow down `INSERT`/`UPDATE`.
+
+---
+
+## 7. Sequences & AUTO_INCREMENT
+
+**AUTO_INCREMENT (MySQL):** Column-level automatic PK:
+
+```sql
+student_id INT AUTO_INCREMENT PRIMARY KEY
+```
+
+**SEQUENCE (MySQL 8.0+):**
+
+```sql
+CREATE SEQUENCE student_seq START WITH 1001 INCREMENT BY 1;
+SELECT NEXT VALUE FOR student_seq;
+```
+
+**Oracle PL/SQL uses sequences more commonly; MySQL historically used AUTO_INCREMENT.**
+
+---
+
+## 8. Stored Procedures & Functions (MySQL)
+
+**Why:** Encapsulate business logic in DB server (reduces client round-trips, centralize rules).
+
+**Key points:**
+
+* Use `DELIMITER` to change client delimiter to define multi-statement procedure.
+* Parameters: `IN`, `OUT`, `INOUT`.
+* `DECLARE` variables must come at start of block.
+
+**Example:**
+
+```sql
+DELIMITER //
+CREATE PROCEDURE proc_Grade(IN stud_name VARCHAR(100), IN marks INT)
+BEGIN
+  DECLARE category VARCHAR(50);
+  IF marks BETWEEN 990 AND 1500 THEN
+    SET category = 'Distinction';
+  ELSEIF marks BETWEEN 900 AND 989 THEN
+    SET category = 'First Class';
+  ELSE SET category = 'No Category';
+  END IF;
+  INSERT INTO Result(Name, Class) VALUES (stud_name, category);
+END //
+DELIMITER ;
+```
+
+**Notes:**
+
+* Keep logic simple and set-based when possible.
+* Use transactions when procedure modifies multiple tables.
+
+---
+
+## 9. Cursors (row-by-row processing)
+
+**When:** When per-row procedural action is required and cannot be expressed as a set-based operation.
+
+**Pattern:**
+
+```sql
+DECLARE done INT DEFAULT 0;
+DECLARE v_name VARCHAR(100); DECLARE v_marks INT;
+DECLARE cur CURSOR FOR SELECT name, total_marks FROM Stud_Marks;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+OPEN cur;
+read_loop: LOOP
+  FETCH cur INTO v_name, v_marks;
+  IF done THEN LEAVE read_loop; END IF;
+  CALL proc_Grade(v_name, v_marks);
+END LOOP;
+CLOSE cur;
+```
+
+**Notes:**
+
+* Cursors = slower than set-based operations.
+* Use when logic is too complex for bulk SQL.
+
+---
+
+## 10. Transactions & Exception Handling (MySQL)
+
+**Transactions:** Ensure atomicity.
+
+```sql
+START TRANSACTION;
+-- multiple DML statements
+COMMIT; -- or ROLLBACK;
+```
+
+**Exception handler inside stored procedure:**
+
+```sql
+DECLARE EXIT HANDLER FOR SQLEXCEPTION
+BEGIN
+  ROLLBACK;
+  SELECT 'Error occurred. Transaction rolled back.' AS Message;
+END;
+```
+
+**SIGNAL:** Raise custom errors
+
+```sql
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Custom error message';
+```
+
+**Notes:**
+
+* `EXIT HANDLER` exits the block after running; `CONTINUE` continues next statement.
+* Use `ROLLBACK` to undo partial changes on error.
+
+---
+
+## 11. Practical SQL Patterns (examples)
+
+### 11.1 Classify students (set-based)
+
+```sql
+INSERT INTO Result (Name, Class)
+SELECT name,
+  CASE
+    WHEN total_marks BETWEEN 990 AND 1500 THEN 'Distinction'
+    WHEN total_marks BETWEEN 900 AND 989 THEN 'First Class'
+    WHEN total_marks BETWEEN 825 AND 899 THEN 'Higher Second Class'
+    ELSE 'No Category'
+  END
+FROM Stud_Marks;
+```
+
+Prefer this over cursor-based classification.
+
+### 11.2 Merge two tables without cursor
+
+```sql
+INSERT INTO O_Roll_Call (roll_no, name)
+SELECT n.roll_no, n.name
+FROM N_Roll_Call n
+WHERE NOT EXISTS (SELECT 1 FROM O_Roll_Call o WHERE o.roll_no = n.roll_no);
+```
+
+Atomic and fast.
+
+### 11.3 Fines & status update (procedure sketch)
+
+* Validate record exists with `SELECT COUNT(*)`
+* DATEDIFF for days
+* Fine formula:
+
+  * `<15` => 0
+  * `15..30` => days * 5
+  * `>30` => 30*5 + (days-30)*50
+* Update status, insert into `Fine`, commit.
+
+---
+
+## 12. MongoDB fundamentals (documents & collections)
+
+**Document:** BSON object (JSON-like).
+**Collection:** group of documents.
+
+**Insert many:**
+
+```js
+db.Teachers.insertMany([{Tname:"Praveen", dno:1, dname:"Computer", experience:8, salary:12000, date_of_joining: ISODate("2018-05-01")}]);
+```
+
+**Find:**
+
+```js
+db.Teachers.find({dname:"Computer"}).sort({Tname:1});
+```
+
+**Notes:** MongoDB schema is flexible — documents in same collection can have different fields.
+
+---
+
+## 13. MongoDB Query Operators (common)
+
+**Comparison:** `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`
+**Logical:** `$and`, `$or`, `$not`, `$nor`
+**Array:** `$in`, `$nin`, `$all`, `$size`
+**Projection:** select fields `{ _id:0, Tname:1 }`
+**Example filters:**
+
+```js
+db.Students.find({ $or: [{roll_no:2}, {Sname:"Xyz"}] })
+db.Teachers.find({ dname: { $in: ["Computer","IT","E&TC"] }, salary: { $gte: 10000 } })
+```
+
+**Notes:**
+
+* String matches are case-sensitive by default.
+* Use regex or collation for case-insensitive matching.
+
+---
+
+## 14. MongoDB Updates (operators, upsert)
+
+**updateOne:**
+
+```js
+db.Teachers.updateOne({Tname:"Praveen"}, {$set:{experience:10}}, {upsert:true});
+```
+
+* `upsert:true` inserts if no match.
+
+**updateMany:**
+
+```js
+db.Teachers.updateMany({dname:"IT"}, {$set:{dname:"COMP"}});
+```
+
+**Unset field:**
+
+```js
+db.collection.updateOne({id:1}, {$unset: {oldField: ""}});
+```
+
+**Notes:**
+
+* Use `$setOnInsert` to set fields only when upsert inserts new doc.
+
+---
+
+## 15. MongoDB Aggregation Framework (pipeline)
+
+**Pipeline:** ordered stages transform documents.
+
+Common stages:
+
+* `$match` — filter
+* `$group` — aggregate (like GROUP BY)
+* `$sort` — sort
+* `$project` — reshape fields
+* `$limit`, `$skip`
+* `$lookup` — join
+* `$unwind` — expand arrays
+* `$addFields`, `$setWindowFields` (window functions)
+
+**Examples:**
+
+Average price:
+
+```js
+db.books.aggregate([{ $group: { _id: null, avgPrice: {$avg:"$price"} } }])
+```
+
+Count per genre:
+
+```js
+db.books.aggregate([{ $group: { _id: "$genre", count: {$sum:1} } }])
+```
+
+Most expensive per genre (pattern using sort+group):
+
+```js
+db.books.aggregate([
+  { $sort: { price: -1 } },
+  { $group: { _id: "$genre", topBook: { $first: "$$ROOT" } } }
+])
+```
+
+Top author(s) by number of books (handle ties):
+
+* Compute counts, compute max, then filter counts == max.
+
+**Use `$merge` or `$out` to write aggregation results to collections.**
+
+---
+
+## 16. MongoDB MapReduce
+
+**MapReduce** uses two JS functions:
+
+Map:
+
+```js
+var map = function() { emit(this.cid, this.amount); }
+```
+
+Reduce:
+
+```js
+var reduce = function(key, values) { return Array.sum(values); }
+```
+
+Run:
+
+```js
+db.customer.mapReduce(map, reduce, { out: "total_amount_per_customer" });
+```
+
+**Notes:**
+
+* MapReduce is slower and often deprecated for many use cases; prefer aggregation.
+* Use `out: { inline: 1 }` for small inline results.
+
+---
+
+## 17. MongoDB Indexing & Collation
+
+**Create index:**
+
+```js
+db.books.createIndex({ title: 1 });
+```
+
+**Compound index:**
+
+```js
+db.customer.createIndex({ product_name: 1, amount: -1 });
+```
+
+**Collation** for case-insensitive:
+
+```js
+db.collection.find().collation({ locale: "en", strength: 2 }).sort({ product_name:1 })
+```
+
+**Explain plan:**
+
+```js
+db.books.find({title:"Book A"}).explain("executionStats")
+```
+
+---
+
+## 18. Performance & Best Practices
+
+### SQL
+
+* Prefer **set-based** operations over cursors for bulk processing.
+* Use **transactions** for multi-step updates that must be atomic.
+* Index columns used in `WHERE` and `ORDER BY`. Use compound indexes where appropriate.
+* Avoid unnecessary `SELECT *` in large queries.
+* Validate boundary conditions (e.g., grades = 900 boundary).
+
+### MongoDB
+
+* Use **aggregation pipeline** rather than MapReduce for heavy analytics.
+* `$match` early to reduce pipeline payload.
+* Index fields used in queries and sorts.
+* Normalize or use a canonical key for inconsistent strings (product names).
+* For pagination prefer range-based (last-seen) over `skip` for large offsets.
+
+---
+
+## 19. Common exam / viva questions & concise answers
+
+Q: Why use `DELIMITER` in MySQL?
+A: To allow semicolons inside procedure body without ending the `CREATE` statement early.
+
+Q: How to detect end of a cursor?
+A: `DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;` then check `done` after `FETCH`.
+
+Q: Difference between `AUTO_INCREMENT` and `SEQUENCE`?
+A: `AUTO_INCREMENT` is column property; `SEQUENCE` is an object returning numbers (MySQL 8+ and Oracle).
+
+Q: Why prefer aggregation pipeline over MapReduce?
+A: Aggregation is faster, implemented in native code, and optimizable; MapReduce runs JS and is slower.
+
+Q: What does `SIGNAL` do?
+A: Raises a user-defined error/exception inside stored procedure.
+
+Q: How to merge two tables avoiding duplicates?
+A: `INSERT ... SELECT ... WHERE NOT EXISTS(...)` or `INSERT IGNORE` / `ON DUPLICATE KEY UPDATE`.
+
+Q: When to use transactions?
+A: When multiple changes must be applied atomically (all succeed or all rollback).
+
+---
+
+## Appendix — Compact syntax snippets (copy-paste)
+
+### SQL: Create table with FK & check
+
+```sql
+CREATE TABLE branch (
+  branch_name VARCHAR(50) PRIMARY KEY,
+  branch_city VARCHAR(50),
+  assets_amt DECIMAL(12,2)
+);
+CREATE TABLE account (
+  acc_no INT PRIMARY KEY,
+  branch_name VARCHAR(50),
+  balance DECIMAL(12,2) CHECK (balance >= 0),
+  FOREIGN KEY (branch_name) REFERENCES branch(branch_name)
+);
+```
+
+### SQL: Stored procedure error handler pattern
+
+```sql
+DELIMITER //
+CREATE PROCEDURE do_something()
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    SELECT 'Error' AS msg;
+  END;
+  START TRANSACTION;
+  -- statements
+  COMMIT;
+END //
+DELIMITER ;
+```
+
+### SQL: Cursor pattern
+
+```sql
+DECLARE done INT DEFAULT 0;
+DECLARE v1 VARCHAR(50);
+DECLARE cur CURSOR FOR SELECT col FROM table;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+OPEN cur;
+read_loop: LOOP
+  FETCH cur INTO v1;
+  IF done THEN LEAVE read_loop; END IF;
+  -- process v1
+END LOOP;
+CLOSE cur;
+```
+
+### MongoDB: Aggregate total per product
+
+```js
+db.customer.aggregate([
+  { $group: { _id: "$product_name", totalSales: { $sum: "$amount" } } },
+  { $sort: { totalSales: -1 } }
+]);
+```
+
+### MongoDB: Update with upsert
+
+```js
+db.Teachers.updateOne({ Tname: "Praveen" }, { $set: { experience: 10 } }, { upsert: true });
+```
+
+---
+
+## Final tips
+
+* For exams: memorize cursor end-detection pattern, `DELIMITER` usage, transaction handling with error handler, and typical aggregation pipelines.
+* Practice writing the same logic both as procedural code (cursor/procedure) and as set-based SQL (INSERT ... SELECT / aggregation), and explain why set-based is preferred.
+* In MongoDB practice aggregation pipelines that `$match` early, `$group` for rollups, and `$sort` with indexes.
+
+---
+
+If you want, I’ll:
+
+* Convert this into a tidy **one-page printable cheat sheet** (condensed),
+* Or expand any section into a longer tutorial with worked examples and sample outputs (e.g., step-by-step run of the fines procedure showing intermediate table states),
+* Or produce a direct **lab-journal style** document (Aim, Theory, Code, Output, Conclusion) for Problem 8.
+
+Which would you like next?
