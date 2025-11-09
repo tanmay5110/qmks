@@ -1,0 +1,456 @@
+
+
+Problem Statement:5
+MongoDB Aggregation
+You have been given a dataset containing details about different books. Each book has the
+following fields:
+● title: The title of the book
+● author: The author of the book
+● genre: The genre of the book (e.g., Fiction, Non-Fiction, Mystery, Sci-Fi)
+● price: The price of the book
+● published_date: The date the book was published.
+The data has been stored in a MongoDB collection named books.
+Using the MongoDB aggregation framework, perform the following tasks:
+1. Find the average price of all books.
+2. Find the count of books in each genre.
+3. For each genre, find the most expensive book.
+4. Find the authors who have written maximum books.
+5. Sort the books by published_date in descending order.
+6. Sort the price in ascending order.
+7. create an index on title of the book and describe the index details
+
+
+
+use bookstoreDB
+
+db.books.drop()
+
+db.books.insertMany([
+  { title: "Book A", author: "Author X", genre: "Fiction",     price: 250, published_date: ISODate("2021-01-10") },
+  { title: "Book B", author: "Author Y", genre: "Mystery",     price: 300, published_date: ISODate("2020-10-05") },
+  { title: "Book C", author: "Author X", genre: "Fiction",     price: 150, published_date: ISODate("2019-08-15") },
+  { title: "Book D", author: "Author Z", genre: "Non-Fiction", price: 400, published_date: ISODate("2022-03-20") },
+  { title: "Book E", author: "Author Y", genre: "Sci-Fi",      price: 500, published_date: ISODate("2021-05-25") }
+])
+
+print("1️⃣ Average price of all books")
+db.books.aggregate([{ $group: { _id: null, avgPrice: { $avg: "$price" } } }])
+
+print("2️⃣ Count of books in each genre")
+db.books.aggregate([{ $group: { _id: "$genre", count: { $sum: 1 } } }])
+
+print("3️⃣ Most expensive book in each genre")
+db.books.aggregate([{ $sort: { price: -1 } }, { $group: { _id: "$genre", mostExpensiveBook: { $first: "$$ROOT" } } }])
+
+print("4️⃣ Author(s) with maximum number of books")
+db.books.aggregate([{ $group: { _id: "$author", bookCount: { $sum: 1 } } }, { $sort: { bookCount: -1 } }, { $limit: 1 }])
+
+print("5️⃣ Books by published_date descending")
+db.books.find().sort({ published_date: -1 }).pretty()
+
+print("6️⃣ Books by price ascending")
+db.books.find().sort({ price: 1 }).pretty()
+
+print("7️⃣ Create index on title and show indexes")
+db.books.createIndex({ title: 1 })
+db.books.getIndexes()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Nice — I’ll give you the same **full, exam-ready treatment** you asked for earlier:
+a line-by-line explanation of the script, the MongoDB/aggregation concepts used, expected outputs for the sample data, edge-cases and practical tips, performance/indexing notes, and a short viva Q&A. Ready to paste into notes.
+
+---
+
+# 1 — What the script does (high level)
+
+You create a `bookstoreDB` database, insert sample `books` documents, then use the MongoDB **aggregation framework** and some regular find/sort operations to:
+
+1. Compute the average price of all books.
+2. Count books per genre.
+3. For each genre find the most expensive book (whole document).
+4. Find the author(s) with the maximum number of books.
+5. List books sorted by published date (descending).
+6. List books sorted by price (ascending).
+7. Create an index on `title` and show indexes.
+
+---
+
+# 2 — The data you insert (explain)
+
+```js
+db.books.insertMany([
+  { title: "Book A", author: "Author X", genre: "Fiction",     price: 250, published_date: ISODate("2021-01-10") },
+  { title: "Book B", author: "Author Y", genre: "Mystery",     price: 300, published_date: ISODate("2020-10-05") },
+  { title: "Book C", author: "Author X", genre: "Fiction",     price: 150, published_date: ISODate("2019-08-15") },
+  { title: "Book D", author: "Author Z", genre: "Non-Fiction", price: 400, published_date: ISODate("2022-03-20") },
+  { title: "Book E", author: "Author Y", genre: "Sci-Fi",      price: 500, published_date: ISODate("2021-05-25") }
+])
+```
+
+* Documents are BSON objects; `ISODate(...)` stores a BSON `Date` (important for date sorting/operations).
+* Fields: `title` (string), `author` (string), `genre` (string), `price` (number), `published_date` (date).
+
+---
+
+# 3 — Detailed explanation of each operation
+
+### 1) Average price of all books
+
+```js
+db.books.aggregate([
+  { $group: { _id: null, avgPrice: { $avg: "$price" } } }
+])
+```
+
+* `$group` groups documents; `_id: null` creates a single group for the whole collection.
+* `$avg: "$price"` computes the mean of the `price` field across that group.
+* Output shape: `{ _id: null, avgPrice: 320 }` (with these sample values; explained below).
+
+**Concept:** Aggregation framework uses staged pipelines — each stage transforms the stream of documents.
+
+---
+
+### 2) Count of books in each genre
+
+```js
+db.books.aggregate([
+  { $group: { _id: "$genre", count: { $sum: 1 } } }
+])
+```
+
+* Group by `genre` (`_id: "$genre"`).
+* `$sum:1` increments a counter for each document in the group.
+* Output: documents like `{ _id: "Fiction", count: 2 }`, etc.
+
+**Concept:** `$group` is used for grouping and summary aggregations (sum, avg, min, max, push, addToSet).
+
+---
+
+### 3) Most expensive book in each genre
+
+```js
+db.books.aggregate([
+  { $sort: { price: -1 } },
+  { $group: { _id: "$genre", mostExpensiveBook: { $first: "$$ROOT" } } }
+])
+```
+
+* Stage 1: `$sort: { price: -1 }` sorts documents descending by `price` (global sort across collection).
+* Stage 2: `$group` by `genre`; `$first: "$$ROOT"` picks the first document in each group *after* the sort — because we sorted global by price descending, `$first` yields the most expensive document per genre.
+* `$$ROOT` refers to the entire current document.
+* Output: `{ _id: "Fiction", mostExpensiveBook: { title: "Book A", author: ... } }`
+
+**Alternative:** Use `$group` with `max` to get max price, then `$lookup` or `$first` in a subsequent pipeline to fetch whole document. Or use `$group` with accumulator `$top` / `$topN` (MongoDB 5.2+ supports `$top` and `$topN`) which is more direct:
+
+```js
+{ $group: { _id: "$genre", mostExpensive: { $first: "$$ROOT" }, maxPrice: { $max: "$price" } } }
+```
+
+---
+
+### 4) Authors who have written maximum books
+
+```js
+db.books.aggregate([
+  { $group: { _id: "$author", bookCount: { $sum: 1 } } },
+  { $sort: { bookCount: -1 } },
+  { $limit: 1 }
+])
+```
+
+* Stage1: group by `author`, count books per author.
+* Stage2: sort descending by `bookCount`.
+* Stage3: `limit(1)` yields the top author with max books.
+* With sample data, `Author X` has 2 books, `Author Y` has 2 books as well — but with `$limit:1` you'll see *one* top author (if tie, the sort order among equals is nondeterministic unless you add tiebreaker). To get all tied top authors, you should compute the max count and then filter:
+
+**Get all authors tied for max**:
+
+```js
+db.books.aggregate([
+  { $group: { _id: "$author", bookCount: { $sum: 1 } } },
+  { $group: { _id: null, maxCount: { $max: "$bookCount" }, authors: { $push: { author: "$_id", count: "$bookCount" } } } },
+  { $project: { authors: { $filter: { input: "$authors", as: "a", cond: { $eq: ["$$a.count", "$maxCount"] } } }, _id: 0 } }
+])
+```
+
+---
+
+### 5) Sort the books by published_date in descending order
+
+```js
+db.books.find().sort({ published_date: -1 }).pretty()
+```
+
+* `find()` returns documents, `sort({ published_date: -1 })` orders newest first.
+* `pretty()` formats output in shell. Use aggregation `$sort` for pipeline-based operations:
+
+```js
+db.books.aggregate([{ $sort: { published_date: -1 } }])
+```
+
+---
+
+### 6) Sort the price in ascending order
+
+```js
+db.books.find().sort({ price: 1 }).pretty()
+```
+
+* `sort({ price: 1 })` orders cheapest-to-expensive.
+* Use an index on `price` if collection large and you sort frequently.
+
+---
+
+### 7) Create an index on title and show index details
+
+```js
+db.books.createIndex({ title: 1 })
+db.books.getIndexes()
+```
+
+* `createIndex({ title: 1 })` creates an ascending B-tree index on `title`.
+* `getIndexes()` returns metadata about all indexes on `books`.
+* `explain("executionStats")` on a query shows whether the index was used.
+
+**Index details to look for**:
+
+* `key` field (which fields are indexed),
+* `name` (index name),
+* `unique` flag,
+* `ns` (namespace),
+* `v` (index version),
+* `background` (build type on older versions),
+* `collation` (for string comparisons).
+
+---
+
+# 4 — Expected outputs (for your sample dataset)
+
+Given the 5 documents, quick computed values:
+
+* **Average price**: (250 + 300 + 150 + 400 + 500) / 5 = 1600 / 5 = **320**
+  Aggregation output: `{ _id: null, avgPrice: 320 }`
+
+* **Counts per genre**:
+
+  * Fiction → 2 (Book A, Book C)
+  * Mystery → 1 (Book B)
+  * Non-Fiction → 1 (Book D)
+  * Sci-Fi → 1 (Book E)
+    Documents like `{ _id: "Fiction", count: 2 }`, etc.
+
+* **Most expensive book per genre**:
+
+  * Fiction → Book A (250) — since Book A > Book C (150)
+  * Mystery → Book B (300)
+  * Non-Fiction → Book D (400)
+  * Sci-Fi → Book E (500)
+    Output includes the full doc for each genre.
+
+* **Author with maximum number of books**:
+
+  * Author X: 2 books (Book A, Book C)
+  * Author Y: 2 books (Book B, Book E)
+    Using `{ $limit: 1 }` you will get one of them (tie unresolved). To return both, use the "get all tied top authors" pattern shown above.
+
+* **Sorted by published_date desc**:
+
+  * Book D (2022-03-20), Book E (2021-05-25), Book A (2021-01-10), Book B (2020-10-05), Book C (2019-08-15)
+
+* **Sorted by price asc**:
+
+  * Book C (150), Book A (250), Book B (300), Book D (400), Book E (500)
+
+* **Index listing**:
+
+  * After creation you’ll see at least two indexes: `_id_` and `title_` with details returned by `db.books.getIndexes()`.
+
+---
+
+# 5 — Edge cases & important notes
+
+* **Empty collection**: `AVG` and `SUM` over empty set produce no output for grouping by `_id:null` — aggregation returns empty array. You can use `$group` then `$project` with `$ifNull` or handle empty case in application.
+* **Null or missing `price`**: `$avg` ignores `null` fields. If some docs miss `price` you may want to filter them out first: `{ $match: { price: { $exists: true, $type: "number" } } }`.
+* **Ties in top author**: `$limit: 1` hides ties. Use two-stage aggregation to return all authors with the max count (pattern shown earlier).
+* **Large collections**: avoid `$sort` without index on large collections (it may spill to disk). Use indexes for sort keys when possible.
+* **Collation**: `createIndex({ title: 1 })` uses default collation; for case-insensitive indexing specify collation if required (MongoDB 3.4+ supports collation).
+
+---
+
+# 6 — Performance & optimization tips
+
+* **Indexes**:
+
+  * Create index on `price` if you sort by price often: `db.books.createIndex({ price: 1 })`.
+  * Create index on `published_date` for date-based sorts and range queries.
+  * Compound index `{ genre:1, price:-1 }` would speed "most expensive per genre" pattern if used with pipeline stages such as `$group` with `$first` after `$sort` on genre & price.
+
+* **Aggregation pipeline order**:
+
+  * Put `$match` early to reduce docs flowing through pipeline.
+  * `$sort` is expensive — if possible combine with an index: an index can satisfy `$sort` if the sort keys are a prefix of an index.
+
+* **Memory limits**: Aggregation stages that require large memory (e.g., `$group`, `$sort`) may hit `allowDiskUse` limits. Use `allowDiskUse: true` for heavy aggregations:
+
+  ```js
+  db.books.aggregate(pipeline, { allowDiskUse: true })
+  ```
+
+* **Use `$project`** to limit fields passed between stages (reduces memory I/O).
+
+---
+
+# 7 — Examples of improved or alternative pipelines
+
+**Compute avg price excluding null/invalid prices**
+
+```js
+db.books.aggregate([
+  { $match: { price: { $type: "number" } } },
+  { $group: { _id: null, avgPrice: { $avg: "$price" } } }
+])
+```
+
+**Most expensive book per genre using `$group` + `$max` then lookup**
+
+```js
+db.books.aggregate([
+  { $group: { _id: "$genre", maxPrice: { $max: "$price" } } },
+  { $lookup: {
+      from: "books",
+      let: { g: "$_id", maxP: "$maxPrice" },
+      pipeline: [
+        { $match: { $expr: { $and: [{ $eq: ["$genre", "$$g"] }, { $eq: ["$price", "$$maxP"] }] } } },
+        { $project: { title:1, author:1, price:1, published_date:1 } }
+      ],
+      as: "topBooks"
+  } },
+  { $unwind: "$topBooks" }
+])
+```
+
+This handles ties (multiple books with same max price in a genre).
+
+---
+
+# 8 — How to check index usage (explain)
+
+Use `.explain()` to see whether a query uses the index:
+
+```js
+db.books.find({ title: "Book A" }).explain("executionStats")
+```
+
+Check `executionStats` → `totalKeysExamined` and `stage` to see if index scan was used.
+
+---
+
+# 9 — Viva / short Q&A (memorize)
+
+Q: What is the aggregation framework?
+A: A pipeline of stages that transform documents (match, group, sort, project, lookup, unwind, etc.) to compute results.
+
+Q: Difference between `$group` and `GROUP BY` (SQL)?
+A: Both aggregate; `$group` is a pipeline stage and uses `_id` for grouping key; `$group` can produce complex accumulator outputs and is document-oriented.
+
+Q: What does `$$ROOT` mean?
+A: A system variable in aggregation that represents the entire current document.
+
+Q: When to use `allowDiskUse`?
+A: When `$sort` or `$group` needs more memory than in-memory limits; it allows temporary disk usage.
+
+Q: How to get all authors tied for the maximum number of books?
+A: Compute counts per author, compute the max count, then filter authors with count equal to that max (two-stage aggregation example shown earlier).
+
+Q: How to index for `$sort` operations?
+A: Create an index with keys in same order as the sort. For queries that `sort` and `match`, a compound index matching `match` prefix and sort suffix is ideal.
+
+---
+
+# 10 — Quick runnable script (copy-paste ready)
+
+If you want a single block to copy-and-run in the mongo shell (with some labeled outputs), here’s a concise script:
+
+```js
+use bookstoreDB;
+db.books.drop();
+
+db.books.insertMany([
+  { title: "Book A", author: "Author X", genre: "Fiction",     price: 250, published_date: ISODate("2021-01-10") },
+  { title: "Book B", author: "Author Y", genre: "Mystery",     price: 300, published_date: ISODate("2020-10-05") },
+  { title: "Book C", author: "Author X", genre: "Fiction",     price: 150, published_date: ISODate("2019-08-15") },
+  { title: "Book D", author: "Author Z", genre: "Non-Fiction", price: 400, published_date: ISODate("2022-03-20") },
+  { title: "Book E", author: "Author Y", genre: "Sci-Fi",      price: 500, published_date: ISODate("2021-05-25") }
+]);
+
+print("1) Average price:");
+printjson(db.books.aggregate([{ $group: { _id: null, avgPrice: { $avg: "$price" } } }]).toArray());
+
+print("2) Count per genre:");
+printjson(db.books.aggregate([{ $group: { _id: "$genre", count: { $sum: 1 } } }]).toArray());
+
+print("3) Most expensive book per genre:");
+printjson(db.books.aggregate([{ $sort: { price: -1 } }, { $group: { _id: "$genre", mostExpensiveBook: { $first: "$$ROOT" } } }]).toArray());
+
+print("4) Top author(s) by book count (single):");
+printjson(db.books.aggregate([{ $group: { _id: "$author", bookCount: { $sum: 1 } } }, { $sort: { bookCount: -1 } }, { $limit: 1 }]).toArray());
+
+print("5) Books sorted by published_date (desc):");
+db.books.find().sort({ published_date: -1 }).forEach(doc => printjson(doc));
+
+print("6) Books sorted by price (asc):");
+db.books.find().sort({ price: 1 }).forEach(doc => printjson(doc));
+
+print("7) Create index on title and list indexes:");
+db.books.createIndex({ title: 1 });
+printjson(db.books.getIndexes());
+```
+
+---
+
+If you want, I can next:
+
+* (A) show how to return *all* authors tied for maximum books (full pipeline + explain),
+* (B) provide a small benchmark showing cursor vs aggregation performance for large collections (simulated), or
+* (C) produce a one-page printable viva sheet with commands + Q/A.
+
+Which one should I do?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

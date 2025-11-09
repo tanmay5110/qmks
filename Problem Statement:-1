@@ -1,0 +1,656 @@
+Problem Statement:-1
+Problem Statement:-1
+Account(Acc_no, branch_name,balance)
+branch(branch_name,branch_city,assets_amt)
+customer(cust_name,cust_street,cust_city)
+Depositor(cust_name,acc_no)
+Loan(Acc_no,loan_no,branch_name,amount)
+Borrower(cust_name,loan_no)
+Solve following query:
+1. Create above tables with appropriate constraints like primary key, foreign key,
+check constrains, not null etc.
+2. Find the names of all branches in loan relation.
+3. Find all loan numbers for loans made at Pimpri Branch with loan amount > 12000.
+4. Find all customers who have a loan from bank. Find their names, loan_no and loan
+amount.
+5. List all customers in alphabetical order who have loan from Akurdi branch.
+6. Find all customers who have an account or loan or both at bank.
+7. Find all customers who have both account and loan at bank.
+8. Find average account balance at Pimpri branch.
+9. Find the average account balance at each branch
+10. Find the branches where average account balance > 12000.
+11. Calculate total loan amount given by bank.
+
+
+/* ----- Simple, correct implementation for the bank DB practical ----- */
+
+-- 1) Create DB and switch to it
+DROP DATABASE IF EXISTS bankdb;
+CREATE DATABASE bankdb;
+USE bankdb;
+
+-- 2) Create tables (drop first if existed)
+DROP TABLE IF EXISTS borrower;
+DROP TABLE IF EXISTS loan;
+DROP TABLE IF EXISTS depositor;
+DROP TABLE IF EXISTS customer;
+DROP TABLE IF EXISTS account;
+DROP TABLE IF EXISTS branch;
+
+CREATE TABLE branch (
+  branch_name VARCHAR(50) PRIMARY KEY,
+  branch_city VARCHAR(50) NOT NULL,
+  assets_amt DECIMAL(14,2) NOT NULL
+);
+
+CREATE TABLE account (
+  acc_no INT PRIMARY KEY,
+  branch_name VARCHAR(50) NOT NULL,
+  balance DECIMAL(12,2) NOT NULL CHECK (balance >= 0),
+  CONSTRAINT fk_account_branch FOREIGN KEY (branch_name) REFERENCES branch(branch_name)
+);
+
+CREATE TABLE customer (
+  cust_name VARCHAR(50) PRIMARY KEY,
+  cust_street VARCHAR(50),
+  cust_city VARCHAR(50)
+);
+
+CREATE TABLE depositor (
+  cust_name VARCHAR(50),
+  acc_no INT,
+  PRIMARY KEY (cust_name, acc_no),
+  CONSTRAINT fk_depositor_customer FOREIGN KEY (cust_name) REFERENCES customer(cust_name),
+  CONSTRAINT fk_depositor_account FOREIGN KEY (acc_no) REFERENCES account(acc_no)
+);
+
+CREATE TABLE loan (
+  loan_no INT PRIMARY KEY,
+  acc_no INT NOT NULL,
+  branch_name VARCHAR(50) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL CHECK (amount >= 0),
+  CONSTRAINT fk_loan_account FOREIGN KEY (acc_no) REFERENCES account(acc_no),
+  CONSTRAINT fk_loan_branch FOREIGN KEY (branch_name) REFERENCES branch(branch_name)
+);
+
+CREATE TABLE borrower (
+  cust_name VARCHAR(50),
+  loan_no INT,
+  PRIMARY KEY (cust_name, loan_no),
+  CONSTRAINT fk_borrower_customer FOREIGN KEY (cust_name) REFERENCES customer(cust_name),
+  CONSTRAINT fk_borrower_loan FOREIGN KEY (loan_no) REFERENCES loan(loan_no)
+);
+
+-- 3) Insert sample data
+INSERT INTO branch (branch_name, branch_city, assets_amt) VALUES
+('Pimpri','Pune',1000000.00),
+('Akurdi','Pune',800000.00);
+
+INSERT INTO account (acc_no, branch_name, balance) VALUES
+(1,'Pimpri',15000.00),
+(2,'Pimpri',10000.00),
+(3,'Akurdi',20000.00);
+
+INSERT INTO customer (cust_name, cust_street, cust_city) VALUES
+('Alice','Street1','Pune'),
+('Bob','Street2','Pune'),
+('Charlie','Street3','Pune');
+
+INSERT INTO depositor (cust_name, acc_no) VALUES
+('Alice',1),
+('Bob',2),
+('Charlie',3);
+
+INSERT INTO loan (loan_no, acc_no, branch_name, amount) VALUES
+(101,1,'Pimpri',13000.00),
+(102,2,'Pimpri',11000.00),
+(103,3,'Akurdi',15000.00);
+
+INSERT INTO borrower (cust_name, loan_no) VALUES
+('Alice',101),
+('Bob',102),
+('Charlie',103);
+
+-- 4) Queries (run these one by one as needed)
+
+-- 1. Names of all branches appearing in loan relation
+SELECT DISTINCT branch_name
+FROM loan;
+
+-- 2. Loan numbers for Pimpri branch with amount > 12000
+SELECT loan_no
+FROM loan
+WHERE branch_name = 'Pimpri' AND amount > 12000;
+
+-- 3. All customers who have a loan — show name, loan_no and loan amount
+SELECT b.cust_name, l.loan_no, l.amount
+FROM borrower b
+JOIN loan l ON b.loan_no = l.loan_no;
+
+-- 4. All customers (alphabetical) who have a loan from Akurdi branch
+SELECT b.cust_name
+FROM borrower b
+JOIN loan l ON b.loan_no = l.loan_no
+WHERE l.branch_name = 'Akurdi'
+ORDER BY b.cust_name ASC;
+
+-- 5. All customers who have an account OR a loan (or both)
+--    UNION removes duplicates; use UNION ALL if you want possible duplicates
+SELECT cust_name FROM depositor
+UNION
+SELECT cust_name FROM borrower;
+
+-- 6. All customers who have BOTH an account and a loan
+SELECT d.cust_name
+FROM depositor d
+INNER JOIN borrower b ON d.cust_name = b.cust_name
+GROUP BY d.cust_name;
+
+-- 7. Average account balance at Pimpri branch
+SELECT AVG(balance) AS avg_balance_pimpri
+FROM account
+WHERE branch_name = 'Pimpri';
+
+-- 8. Average account balance at each branch
+SELECT branch_name, AVG(balance) AS avg_balance
+FROM account
+GROUP BY branch_name;
+
+-- 9. Branches where average account balance > 12000
+SELECT branch_name, AVG(balance) AS avg_balance
+FROM account
+GROUP BY branch_name
+HAVING AVG(balance) > 12000;
+
+-- 10. Total loan amount given by the bank
+SELECT SUM(amount) AS total_loan_amount
+FROM loan;
+
+-- End of script
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+reat — I’ll walk you through the **entire script** step-by-step, explain every SQL concept that appears (and the important related theory), show why each choice was made, point out practical caveats (MySQL specifics), and finish with a compact **viva / exam Q&A** you can use. I’ll also include suggested improvements and performance notes.
+
+I'll keep it organized so you can copy parts into your notes.
+
+---
+
+# 🔎 1 — What the script does (high level)
+
+* Creates a small **bank** database schema with six tables: `branch`, `account`, `customer`, `depositor`, `loan`, `borrower`.
+* Inserts sample rows.
+* Runs queries to retrieve information (distinct values, filters, joins, aggregates).
+* Demonstrates relational concepts: primary/foreign keys, referential integrity, constraints, and common SQL operations (JOIN, GROUP BY, HAVING, UNION).
+
+---
+
+# 🧩 2 — Schema explained (table by table)
+
+## `branch`
+
+```sql
+CREATE TABLE branch (
+  branch_name VARCHAR(50) PRIMARY KEY,
+  branch_city VARCHAR(50) NOT NULL,
+  assets_amt DECIMAL(14,2) NOT NULL
+);
+```
+
+**Concepts**
+
+* `branch_name` is the **primary key** — unique identifier for branches.
+* `NOT NULL` ensures `branch_city` and `assets_amt` must have values.
+* `DECIMAL(14,2)` stores exact money values (12 digits before decimal, 2 after; here 14 total digits with 2 decimals).
+* Use of `VARCHAR` for textual fields.
+
+**Notes**
+
+* Primary keys enforce uniqueness and are automatically indexed.
+* `DECIMAL` is preferred for financial amounts to avoid floating-point rounding errors.
+
+---
+
+## `account`
+
+```sql
+CREATE TABLE account (
+  acc_no INT PRIMARY KEY,
+  branch_name VARCHAR(50) NOT NULL,
+  balance DECIMAL(12,2) NOT NULL CHECK (balance >= 0),
+  CONSTRAINT fk_account_branch FOREIGN KEY (branch_name) REFERENCES branch(branch_name)
+);
+```
+
+**Concepts**
+
+* `acc_no` (account number) is PK and unique per account.
+* `branch_name` is a foreign key referencing `branch(branch_name)` — enforces **referential integrity**: an account must belong to an existing branch.
+* `CHECK(balance >= 0)` documents business rule that balance can't be negative.
+
+**MySQL detail**
+
+* `CHECK` is supported syntactically since MySQL 8, but older versions may ignore it. For strong enforcement on older servers, triggers or application-level checks are used.
+* Foreign keys require `InnoDB` engine in MySQL — check `ENGINE=InnoDB`.
+
+---
+
+## `customer`
+
+```sql
+CREATE TABLE customer (
+  cust_name VARCHAR(50) PRIMARY KEY,
+  cust_street VARCHAR(50),
+  cust_city VARCHAR(50)
+);
+```
+
+**Concepts**
+
+* `cust_name` used as primary key (simple example). In real systems, use a surrogate key (e.g., `cust_id`) because names are not guaranteed unique.
+* Stores customer address fields.
+
+**Design note**
+
+* Using person’s name as a primary key is okay for exercises but not recommended in production (duplicate names, name changes).
+
+---
+
+## `depositor`
+
+```sql
+CREATE TABLE depositor (
+  cust_name VARCHAR(50),
+  acc_no INT,
+  PRIMARY KEY (cust_name, acc_no),
+  CONSTRAINT fk_depositor_customer FOREIGN KEY (cust_name) REFERENCES customer(cust_name),
+  CONSTRAINT fk_depositor_account FOREIGN KEY (acc_no) REFERENCES account(acc_no)
+);
+```
+
+**Concepts**
+
+* This is a **many-to-many** join table between `customer` and `account`: a customer may hold many accounts, and an account could (in some designs) be associated with multiple customers.
+* Composite PK `(cust_name, acc_no)` prevents duplicate rows for the same customer-account pair.
+
+---
+
+## `loan`
+
+```sql
+CREATE TABLE loan (
+  loan_no INT PRIMARY KEY,
+  acc_no INT NOT NULL,
+  branch_name VARCHAR(50) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL CHECK (amount >= 0),
+  CONSTRAINT fk_loan_account FOREIGN KEY (acc_no) REFERENCES account(acc_no),
+  CONSTRAINT fk_loan_branch FOREIGN KEY (branch_name) REFERENCES branch(branch_name)
+);
+```
+
+**Concepts**
+
+* `loan_no` uniquely identifies a loan.
+* `acc_no` links to the account that is associated with (or used as collateral for) the loan — enforced by FK.
+* Also references `branch` because loans are recorded for a branch.
+
+---
+
+## `borrower`
+
+```sql
+CREATE TABLE borrower (
+  cust_name VARCHAR(50),
+  loan_no INT,
+  PRIMARY KEY (cust_name, loan_no),
+  CONSTRAINT fk_borrower_customer FOREIGN KEY (cust_name) REFERENCES customer(cust_name),
+  CONSTRAINT fk_borrower_loan FOREIGN KEY (loan_no) REFERENCES loan(loan_no)
+);
+```
+
+**Concepts**
+
+* Another association table: customers who borrowed specific loans.
+* Composite primary key prevents duplicate borrower–loan pairs.
+
+---
+
+# 🧭 3 — Data integrity & constraints — theory
+
+**Primary Key**
+
+* Uniquely identifies table rows. Enforces uniqueness and non-nullability (some DBs allow NULL in PK? Standard: PK must be NOT NULL).
+
+**Foreign Key**
+
+* Links child table to parent table; enforces referential integrity: child values must exist in parent.
+* You can add `ON DELETE` / `ON UPDATE` actions: `CASCADE`, `SET NULL`, `RESTRICT`, `NO ACTION`.
+
+  * Example: `ON DELETE CASCADE` would delete child rows when parent deleted.
+
+**CHECK constraints**
+
+* Enforce domain rules (e.g., non-negative balances). Some versions may not enforce CHECK — verify your MySQL/MariaDB version.
+
+**NOT NULL**
+
+* Ensures required columns have values.
+
+**Composite primary key**
+
+* Useful in many-to-many link tables to prevent duplicate edge rows.
+
+---
+
+# 🔁 4 — Normalization & data model rationale
+
+**Normalization** aims to reduce redundancy and anomalies:
+
+* **1NF**: atomic values (each cell single value) — satisfied.
+* **2NF**: no partial dependency on part of composite key — OK because non-key attributes depend on whole PK.
+* **3NF**: no transitive dependencies — schema separates branches, accounts, loans, customers into separate tables (good).
+
+**Why separate tables?**
+
+* Avoid repeating branch info in every account/loan row.
+* Allow flexible relationships (customer ↔ account many-to-many).
+
+---
+
+# 🧠 5 — Query explanations (each SQL query + theory)
+
+### Query 1 — Names of all branches in loan relation
+
+```sql
+SELECT DISTINCT branch_name FROM loan;
+```
+
+* `DISTINCT` removes duplicates.
+* Returns unique branch names that appear in the `loan` table.
+
+Alternative using JOIN with `branch` (if you want branch metadata):
+
+```sql
+SELECT DISTINCT l.branch_name, b.branch_city 
+FROM loan l JOIN branch b USING (branch_name);
+```
+
+---
+
+### Query 2 — Loan numbers at Pimpri branch with amount > 12000
+
+```sql
+SELECT loan_no FROM loan WHERE branch_name = 'Pimpri' AND amount > 12000;
+```
+
+* `WHERE` filters rows.
+* `AND` combines conditions.
+
+---
+
+### Query 3 — Customers with loan details (name, loan_no, amount)
+
+```sql
+SELECT b.cust_name, l.loan_no, l.amount
+FROM borrower b
+JOIN loan l ON b.loan_no = l.loan_no;
+```
+
+* `JOIN` (INNER JOIN) returns only rows present in both tables.
+* This retrieves borrower names and corresponding loan details.
+
+Theory: Use `JOIN` instead of comma-separated tables — more readable and less error-prone.
+
+---
+
+### Query 4 — Customers (alphabetical) with loan from Akurdi branch
+
+```sql
+SELECT b.cust_name
+FROM borrower b
+JOIN loan l ON b.loan_no = l.loan_no
+WHERE l.branch_name = 'Akurdi'
+ORDER BY b.cust_name ASC;
+```
+
+* `ORDER BY` sorts alphabetically ascending.
+* Only borrower names of loans belonging to branch 'Akurdi'.
+
+---
+
+### Query 5 — Customers who have account OR loan OR both
+
+```sql
+SELECT cust_name FROM depositor
+UNION
+SELECT cust_name FROM borrower;
+```
+
+* `UNION` merges results and **removes duplicates**.
+* If you wanted duplicates preserved (counting multiplicity), use `UNION ALL`.
+
+**Why UNION?**
+
+* Useful to retrieve any customer who appears in either relationship.
+
+---
+
+### Query 6 — Customers who have BOTH account and loan
+
+```sql
+SELECT d.cust_name
+FROM depositor d
+INNER JOIN borrower b ON d.cust_name = b.cust_name
+GROUP BY d.cust_name;
+```
+
+* `INNER JOIN` yields only names present in both tables.
+* `GROUP BY` here is optional unless you plan aggregation; used to deduplicate names.
+
+Alternative:
+
+```sql
+SELECT DISTINCT d.cust_name
+FROM depositor d
+JOIN borrower b ON d.cust_name = b.cust_name;
+```
+
+---
+
+### Query 7 — Average account balance at Pimpri branch
+
+```sql
+SELECT AVG(balance) FROM account WHERE branch_name = 'Pimpri';
+```
+
+* `AVG()` is an aggregate function computing mean.
+* `NULL` values are ignored in aggregates.
+
+---
+
+### Query 8 — Average account balance at each branch
+
+```sql
+SELECT branch_name, AVG(balance) AS avg_balance
+FROM account
+GROUP BY branch_name;
+```
+
+* `GROUP BY` groups rows by `branch_name`.
+* Aggregates compute per-group statistics.
+
+---
+
+### Query 9 — Branches where average account balance > 12000
+
+```sql
+SELECT branch_name, AVG(balance) AS avg_balance
+FROM account
+GROUP BY branch_name
+HAVING AVG(balance) > 12000;
+```
+
+* `HAVING` filters results of aggregation (unlike `WHERE` which filters rows before grouping).
+* Use `HAVING` when you need to filter by aggregate values.
+
+---
+
+### Query 10 — Total loan amount given by bank
+
+```sql
+SELECT SUM(amount) AS total_loan_amount FROM loan;
+```
+
+* `SUM()` adds up `amount` values across table.
+* Use `COALESCE(SUM(amount),0)` to return 0 if no loans exist (SUM returns NULL when no rows).
+
+---
+
+# ⚙️ 6 — MySQL-specific practical notes & caveats
+
+* **Storage engine**: for foreign keys and transactions, use `InnoDB`:
+
+  ```sql
+  CREATE TABLE ... ENGINE=InnoDB;
+  ```
+
+  MyISAM doesn’t enforce FKs.
+
+* **CHECK**: older MySQL versions ignore `CHECK` constraints; MySQL 8+ enforces them.
+
+* **Indexing**:
+
+  * PKs and FKs are indexed automatically (PK is indexed; FKs may create indexes implicitly for parent lookup).
+  * Consider composite indexes for frequent queries: e.g., `(branch_name, balance)` for branch-based aggregations.
+  * Use `EXPLAIN SELECT ...` to check query plan.
+
+* **NULL handling**: aggregates (`AVG`, `SUM`) skip `NULL`. `DISTINCT` and `UNION` treat NULL values according to SQL rules.
+
+* **Transactions**: although this script doesn’t show transactions, operations that change multiple tables should be done inside transactions with `START TRANSACTION` / `COMMIT` / `ROLLBACK` for atomicity.
+
+* **Privileges/security**: avoid `GRANT ALL ON *.*` for application users. Grant minimal privileges.
+
+---
+
+# 📈 7 — Performance considerations
+
+* **Cardinality & selectivity**: indexes help when column values are selective (many distinct values). For low-cardinality columns (e.g., boolean flags), indexes may not help.
+* **JOIN order**: the optimizer chooses the best plan; index presence matters more than writing order.
+* **Aggregation on big tables**: may be expensive — consider pre-aggregated summary tables or materialized views if queries are frequent.
+* **Normalization vs denormalization**: normalized schema avoids redundancy but may require joins; for reporting heavy workloads denormalized (or star schema) data warehouses are common.
+
+---
+
+# ✅ 8 — Sample outputs (based on the sample data you inserted)
+
+With the sample data in your script:
+
+* Query 1 (`DISTINCT branch_name FROM loan`) → `Pimpri`, `Akurdi`
+* Query 2 (Pimpri loans > 12000) → loan_no `101`
+* Query 3 (customers with loans) → `Alice 101 13000`, `Bob 102 11000`, `Charlie 103 15000`
+* Query 4 (customers with Akurdi loans) → `Charlie`
+* Query 5 (account OR loan OR both) → `Alice`, `Bob`, `Charlie`
+* Query 6 (both account and loan) → `Alice`, `Bob`, `Charlie` — in this sample every borrower is also a depositor
+* Query 7 (avg balance at Pimpri) → `(15000 + 10000) / 2 = 12500`
+* Query 8 (avg per branch) → `Pimpri: 12500`, `Akurdi: 20000`
+* Query 9 (branches avg > 12000) → `Pimpri (12500)`, `Akurdi (20000)`
+* Query 10 (total loan amount) → `13000 + 11000 + 15000 = 39000`
+
+---
+
+# 🔧 9 — Suggested improvements (practical)
+
+1. **Use surrogate numeric keys**:
+
+   * `customer(cust_id INT AUTO_INCREMENT PRIMARY KEY, cust_name VARCHAR(...))`
+   * Better for joins, change management, and indexing.
+
+2. **Add constraints & timestamps**:
+
+   * `created_at`, `updated_at` columns using `TIMESTAMP`.
+   * Add `NOT NULL` where appropriate.
+
+3. **Add ON DELETE behavior**:
+
+   * Example: `FOREIGN KEY (acc_no) REFERENCES account(acc_no) ON DELETE CASCADE` if you want loans to be removed when an account is removed (careful with business rules).
+
+4. **Index columns used in WHERE**:
+
+   * Index `branch_name` in `account` and `loan` for faster filtering and GROUP BY.
+
+5. **Enforce uniqueness where needed**:
+
+   * If `acc_no` should be unique and sequential, make it `AUTO_INCREMENT`.
+
+6. **Model real relationships**:
+
+   * Borrower table: allow multiple borrowers for a loan (co-borrowers) — already allowed in schema.
+
+---
+
+# 🎓 10 — Viva / exam-style Q&A (common questions & short answers)
+
+Q: Why use `DECIMAL` for money?
+A: `DECIMAL` stores exact decimal numbers; avoids floating-point rounding errors.
+
+Q: Difference between `WHERE` and `HAVING`?
+A: `WHERE` filters rows before aggregation. `HAVING` filters after aggregation (on groups).
+
+Q: What does `UNION` do? `UNION ALL`?
+A: `UNION` combines result sets and removes duplicates. `UNION ALL` combines and keeps duplicates.
+
+Q: What is a composite primary key?
+A: A primary key made of multiple columns (e.g., `(cust_name, acc_no)`), used commonly in join tables to enforce uniqueness of the pair.
+
+Q: Why prefer surrogate keys (IDs) over natural keys (names)?
+A: Surrogate keys are stable, unique, small, and unaffected by name changes; natural keys may be non-unique and changeable.
+
+Q: How do foreign keys enforce referential integrity?
+A: The DBMS prevents insertion of a child row with a foreign key value that doesn’t exist in the parent, and enforces rules on update/delete depending on `ON UPDATE/DELETE` actions.
+
+Q: What is `EXPLAIN` used for?
+A: To view the query execution plan so you can optimize queries (see what indexes are used and estimates).
+
+Q: How do you aggregate only non-null values?
+A: SQL aggregate functions (`AVG`, `SUM`) automatically ignore `NULL` values.
+
+Q: What is a materialized view?
+A: A stored, precomputed result of a query (not native in MySQL; can be simulated with tables and scheduled refresh).
+
+---
+
+# 📚 Quick cheatsheet (commands & purpose)
+
+* `CREATE TABLE ...` — create schema
+* `PRIMARY KEY` — unique row identifier
+* `FOREIGN KEY ... REFERENCES` — link tables (referential integrity)
+* `CHECK` — domain constraint
+* `INSERT INTO ... VALUES (...)` — add rows
+* `SELECT DISTINCT ...` — unique values
+* `JOIN` / `INNER JOIN` — combine related rows
+* `GROUP BY` — group rows for aggregation
+* `HAVING` — filter aggregated results
+* `SUM()`, `AVG()` — aggregate functions
+* `UNION` — combine sets and remove duplicates
+* `EXPLAIN SELECT ...` — view query plan
+
+---
+
+If you’d like, I can now:
+
+* (A) Produce a diagram (ER diagram) of this schema (textual or mermaid) — copy-pasteable.
+* (B) Give optimized `CREATE TABLE` statements with indexes and `ENGINE=InnoDB`.
+* (C) Turn the queries into prepared statements or a small SQL script that prints labeled outputs.
+
+Which one do you want next?

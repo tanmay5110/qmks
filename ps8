@@ -1,0 +1,452 @@
+Problem 8 ROHIT 
+
+
+Develop a student database to efficiently manage and retrieve student records (Student id,
+Student Name, Class, address, grades, and enrolment details, subject name, attendance.
+● Create Views to provide summarized insights into student performance and
+attendance. (Consider the attributes which shows attendance of students while
+creating view)
+● Create Sequences to generate unique student IDs.
+● Create an index on a table using student name.
+
+
+
+
+
+-- ==============================
+-- Problem Statement 8
+-- Student Database with Views, Sequences & Index
+-- ==============================
+
+CREATE DATABASE StudentDB;
+USE StudentDB;
+
+-- Step 1: Create Table
+CREATE TABLE Students (
+  student_id INT AUTO_INCREMENT PRIMARY KEY,
+  student_name VARCHAR(100),
+  class VARCHAR(20),
+  address VARCHAR(150),
+  subject_name VARCHAR(100),
+  grades DECIMAL(4,2),
+  attendance_percent DECIMAL(5,2),
+  enrollment_date DATE
+);
+
+-- Step 2: Insert Sample Data
+INSERT INTO Students (student_name, class, address, subject_name, grades, attendance_percent, enrollment_date)
+VALUES
+('Alice', 'FE', 'Pune', 'Maths', 85.5, 92.0, '2024-07-01'),
+('Bob', 'SE', 'Mumbai', 'Physics', 78.0, 81.5, '2023-08-15'),
+('Charlie', 'TE', 'Nashik', 'Chemistry', 88.5, 95.0, '2022-09-05'),
+('David', 'BE', 'Nagpur', 'AI', 91.0, 96.0, '2021-06-10'),
+('Eva', 'SE', 'Pune', 'Data Science', 82.0, 85.0, '2023-09-01');
+
+-- Step 3: Create View for Performance & Attendance
+CREATE VIEW Student_Performance_View AS
+SELECT
+  student_id,
+  student_name,
+  class,
+  subject_name,
+  grades,
+  attendance_percent,
+  CASE
+    WHEN attendance_percent >= 90 THEN 'Excellent'
+    WHEN attendance_percent BETWEEN 75 AND 89 THEN 'Good'
+    ELSE 'Poor'
+  END AS Attendance_Remark
+FROM Students;
+
+-- Step 4: Create Index on student_name for faster search
+CREATE INDEX idx_student_name ON Students(student_name);
+
+-- Step 5: (Optional) Create Sequence if MySQL version >= 8.0
+-- Comment out if using MariaDB
+-- CREATE SEQUENCE student_seq START WITH 1001 INCREMENT BY 1;
+
+-- Step 6: Display All Records from Table
+SELECT * FROM Students;
+
+-- Step 7: Display Summarized View
+SELECT * FROM Student_Performance_View;
+
+-- Step 8: Example query using the index
+SELECT * FROM Students WHERE student_name = 'Alice';
+
+-- Step 9: View all indexes on Students table
+SHOW INDEXES FROM Students;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Perfect 👌 — let’s now go **line-by-line** through your **Problem Statement 8 (Student Database)** SQL script, just like I explained for Problem 7 earlier.
+
+We’ll break everything down **conceptually + practically**, so you fully understand how every part works in MySQL and what its purpose is in the project or viva.
+
+---
+
+# 🎓 **Problem Statement 8 — Student Database with Views, Sequences & Index**
+
+---
+
+## 🔸 **Objective Recap**
+
+> Create a student database that stores details like student name, class, subject, grades, and attendance — and then:
+>
+> * Create a **View** for summarizing attendance and performance.
+> * Create a **Sequence** to generate unique IDs.
+> * Create an **Index** on the student name for faster searching.
+
+---
+
+## 💻 **Full Script (for reference)**
+
+```sql
+CREATE DATABASE StudentDB;
+USE StudentDB;
+
+CREATE TABLE Students (
+  student_id INT AUTO_INCREMENT PRIMARY KEY,
+  student_name VARCHAR(100),
+  class VARCHAR(20),
+  address VARCHAR(150),
+  subject_name VARCHAR(100),
+  grades DECIMAL(4,2),
+  attendance_percent DECIMAL(5,2),
+  enrollment_date DATE
+);
+
+INSERT INTO Students (student_name, class, address, subject_name, grades, attendance_percent, enrollment_date)
+VALUES
+('Alice', 'FE', 'Pune', 'Maths', 85.5, 92.0, '2024-07-01'),
+('Bob', 'SE', 'Mumbai', 'Physics', 78.0, 81.5, '2023-08-15'),
+('Charlie', 'TE', 'Nashik', 'Chemistry', 88.5, 95.0, '2022-09-05'),
+('David', 'BE', 'Nagpur', 'AI', 91.0, 96.0, '2021-06-10'),
+('Eva', 'SE', 'Pune', 'Data Science', 82.0, 85.0, '2023-09-01');
+
+CREATE VIEW Student_Performance_View AS
+SELECT
+  student_id,
+  student_name,
+  class,
+  subject_name,
+  grades,
+  attendance_percent,
+  CASE
+    WHEN attendance_percent >= 90 THEN 'Excellent'
+    WHEN attendance_percent BETWEEN 75 AND 89 THEN 'Good'
+    ELSE 'Poor'
+  END AS Attendance_Remark
+FROM Students;
+
+CREATE INDEX idx_student_name ON Students(student_name);
+
+-- CREATE SEQUENCE student_seq START WITH 1001 INCREMENT BY 1;
+
+SELECT * FROM Students;
+SELECT * FROM Student_Performance_View;
+SELECT * FROM Students WHERE student_name = 'Alice';
+SHOW INDEXES FROM Students;
+```
+
+---
+
+# 🧩 **Line-by-Line Explanation**
+
+---
+
+### **1️⃣ Create a new database**
+
+```sql
+CREATE DATABASE StudentDB;
+```
+
+* This creates a new database named **StudentDB**.
+* Databases in MySQL are like containers that hold multiple tables.
+
+💡 **Concept:**
+`CREATE DATABASE` is a **DDL (Data Definition Language)** command.
+
+---
+
+### **2️⃣ Switch to the database**
+
+```sql
+USE StudentDB;
+```
+
+* Tells MySQL to make this database the “active” one.
+* Every future table or query will apply to **StudentDB** until changed.
+
+💡 Equivalent to changing folders in a file system.
+
+---
+
+### **3️⃣ Create the Students table**
+
+```sql
+CREATE TABLE Students (
+  student_id INT AUTO_INCREMENT PRIMARY KEY,
+  student_name VARCHAR(100),
+  class VARCHAR(20),
+  address VARCHAR(150),
+  subject_name VARCHAR(100),
+  grades DECIMAL(4,2),
+  attendance_percent DECIMAL(5,2),
+  enrollment_date DATE
+);
+```
+
+#### 🔍 Field-by-field explanation:
+
+| Column               | Type           | Purpose                                              |
+| -------------------- | -------------- | ---------------------------------------------------- |
+| `student_id`         | `INT`          | Unique student number.                               |
+| `AUTO_INCREMENT`     | —              | Automatically generates increasing IDs (1, 2, 3...). |
+| `PRIMARY KEY`        | —              | Ensures each record is unique and identifies it.     |
+| `student_name`       | `VARCHAR(100)` | Stores student’s name (up to 100 chars).             |
+| `class`              | `VARCHAR(20)`  | Year/class (like FE, SE, TE, BE).                    |
+| `address`            | `VARCHAR(150)` | City or full address.                                |
+| `subject_name`       | `VARCHAR(100)` | Subject they study.                                  |
+| `grades`             | `DECIMAL(4,2)` | Decimal value for marks or grade (e.g., 85.50).      |
+| `attendance_percent` | `DECIMAL(5,2)` | Stores attendance in %.                              |
+| `enrollment_date`    | `DATE`         | When student was enrolled.                           |
+
+💡 **Concepts used here:**
+
+* `VARCHAR(n)` = variable-length string.
+* `DECIMAL(m,n)` = fixed-precision number (total digits m, decimal digits n).
+* `DATE` = standard date format (`YYYY-MM-DD`).
+* `PRIMARY KEY` = uniquely identifies each row.
+
+---
+
+### **4️⃣ Insert sample records**
+
+```sql
+INSERT INTO Students (student_name, class, address, subject_name, grades, attendance_percent, enrollment_date)
+VALUES
+('Alice', 'FE', 'Pune', 'Maths', 85.5, 92.0, '2024-07-01'),
+('Bob', 'SE', 'Mumbai', 'Physics', 78.0, 81.5, '2023-08-15'),
+('Charlie', 'TE', 'Nashik', 'Chemistry', 88.5, 95.0, '2022-09-05'),
+('David', 'BE', 'Nagpur', 'AI', 91.0, 96.0, '2021-06-10'),
+('Eva', 'SE', 'Pune', 'Data Science', 82.0, 85.0, '2023-09-01');
+```
+
+* Adds 5 students into the table.
+* You didn’t need to provide `student_id` because of **AUTO_INCREMENT**.
+
+💡 **Concept:**
+`INSERT INTO` = **DML (Data Manipulation Language)** command.
+
+---
+
+### **5️⃣ Create a summarized view**
+
+```sql
+CREATE VIEW Student_Performance_View AS
+SELECT
+  student_id,
+  student_name,
+  class,
+  subject_name,
+  grades,
+  attendance_percent,
+  CASE
+    WHEN attendance_percent >= 90 THEN 'Excellent'
+    WHEN attendance_percent BETWEEN 75 AND 89 THEN 'Good'
+    ELSE 'Poor'
+  END AS Attendance_Remark
+FROM Students;
+```
+
+#### 🔍 What’s happening here:
+
+* **VIEW** is like a virtual table — it doesn’t store new data, it just shows computed results.
+* The `CASE` statement categorizes attendance.
+
+| Condition | Attendance_Remark |
+| --------- | ----------------- |
+| ≥ 90      | Excellent         |
+| 75–89     | Good              |
+| < 75      | Poor              |
+
+💡 **Concepts:**
+
+* `CASE` = conditional logic inside SQL queries.
+* `CREATE VIEW` = DDL command to store a query as a reusable table-like structure.
+
+📘 When you run:
+
+```sql
+SELECT * FROM Student_Performance_View;
+```
+
+It behaves as if you are querying a table, but it’s actually executing the `SELECT` above.
+
+---
+
+### **6️⃣ Create Index**
+
+```sql
+CREATE INDEX idx_student_name ON Students(student_name);
+```
+
+* Creates an **index** on the `student_name` column.
+* It improves speed of queries like:
+
+  ```sql
+  SELECT * FROM Students WHERE student_name = 'Alice';
+  ```
+
+💡 **Concepts:**
+
+* **Index** = data structure (B-Tree) that lets MySQL find records faster.
+* Similar to an index in a book — you can jump directly to the page instead of reading all pages.
+
+---
+
+### **7️⃣ Optional Sequence**
+
+```sql
+-- CREATE SEQUENCE student_seq START WITH 1001 INCREMENT BY 1;
+```
+
+* In MySQL 8.0+, `CREATE SEQUENCE` generates numbers (1001, 1002…).
+* Here it’s commented out because **AUTO_INCREMENT** already handles IDs.
+
+💡 **Concept:**
+
+* `SEQUENCE` is an object that auto-generates numeric series, useful when IDs are shared between multiple tables.
+
+---
+
+### **8️⃣ Display table data**
+
+```sql
+SELECT * FROM Students;
+```
+
+Shows all raw records stored in the Students table.
+
+---
+
+### **9️⃣ Display summarized view**
+
+```sql
+SELECT * FROM Student_Performance_View;
+```
+
+Expected output:
+
+| student_id | student_name | class | subject_name | grades | attendance_percent | Attendance_Remark |
+| ---------- | ------------ | ----- | ------------ | ------ | ------------------ | ----------------- |
+| 1          | Alice        | FE    | Maths        | 85.5   | 92.0               | Excellent         |
+| 2          | Bob          | SE    | Physics      | 78.0   | 81.5               | Good              |
+| 3          | Charlie      | TE    | Chemistry    | 88.5   | 95.0               | Excellent         |
+| 4          | David        | BE    | AI           | 91.0   | 96.0               | Excellent         |
+| 5          | Eva          | SE    | Data Science | 82.0   | 85.0               | Good              |
+
+💡 This demonstrates how **views** provide summarized data without duplicating storage.
+
+---
+
+### **🔟 Query using Index**
+
+```sql
+SELECT * FROM Students WHERE student_name = 'Alice';
+```
+
+* Fetches “Alice” record quickly because of the `idx_student_name` index.
+
+---
+
+### **1️⃣1️⃣ Show existing indexes**
+
+```sql
+SHOW INDEXES FROM Students;
+```
+
+Expected Output:
+
+| Table    | Key_name         | Column_name  | Index_type |
+| -------- | ---------------- | ------------ | ---------- |
+| Students | PRIMARY          | student_id   | BTREE      |
+| Students | idx_student_name | student_name | BTREE      |
+
+💡 **Concept:**
+Every table automatically gets an index for its `PRIMARY KEY`.
+You created an additional one for searching by name.
+
+---
+
+# 🧠 **Concepts Used (Summary)**
+
+| Concept            | Description                                 |
+| ------------------ | ------------------------------------------- |
+| **Database**       | Logical grouping of tables.                 |
+| **Table**          | Structure holding data in rows and columns. |
+| **Primary Key**    | Unique identifier for each record.          |
+| **Auto Increment** | Auto-generates sequential IDs.              |
+| **Insert**         | Adds data to a table.                       |
+| **View**           | Virtual table created from a SELECT query.  |
+| **CASE**           | Conditional logic used inside SELECT.       |
+| **Index**          | Optimizes performance for search queries.   |
+| **Sequence**       | Generates unique numeric values.            |
+
+---
+
+# 🎓 **Viva / Oral Questions**
+
+| Question                                       | Answer                                                                  |
+| ---------------------------------------------- | ----------------------------------------------------------------------- |
+| What is a View?                                | A virtual table that shows results of a stored query.                   |
+| Why do we use a View?                          | To simplify complex queries and show summarized or restricted data.     |
+| What is an Index?                              | A data structure that speeds up searching and sorting operations.       |
+| How does AUTO_INCREMENT work?                  | It automatically increases the ID for each new inserted record.         |
+| Can we insert into a View?                     | Yes, if the view is based on a single table and not an aggregate query. |
+| What is the difference between View and Table? | A table stores data physically, while a view stores a query definition. |
+| Why is Sequence commented out?                 | Because AUTO_INCREMENT already handles unique IDs in MySQL.             |
+| What is the datatype of grades?                | DECIMAL(4,2) — allows up to 4 digits with 2 after the decimal.          |
+| What is the use of CASE in SQL?                | To perform conditional logic like IF–ELSE.                              |
+| Why create an Index on `student_name`?         | For faster lookup and filtering by name.                                |
+
+---
+
+# ✅ **Final Summary**
+
+This SQL program fulfills **all parts** of the problem statement:
+
+| Task                   | Achieved by                                                           |
+| ---------------------- | --------------------------------------------------------------------- |
+| Manage student details | `CREATE TABLE Students`                                               |
+| Summarize performance  | `CREATE VIEW Student_Performance_View`                                |
+| Generate unique IDs    | `AUTO_INCREMENT` (and optional `SEQUENCE`)                            |
+| Speed up search        | `CREATE INDEX idx_student_name`                                       |
+| Show results           | `SELECT * FROM Students` and `SELECT * FROM Student_Performance_View` |
+
+---
+
+Would you like me to give you a **“Lab Journal Format” version** (with sections like Aim, Theory, Code, Output, Conclusion, Viva Questions) for this same problem?
+That’s what most colleges under **SPPU** require in the manual.

@@ -1,0 +1,127 @@
+  Manual PS 4
+
+Unnamed PL/SQLcode block: Use of Control structure and Exception handling is mandatory.
+Suggested Problem statement:
+Consider Tables:
+1. Borrower (Roll_no, Name, Date_of_Issue, Name_of_Book, Status)
+2. Fine (Roll_no, Date, Amt)  Accept Roll_no and Name_of_Book from user.  Check the number of days (from Date_of_Issue).  If days are between 15 to 30 then fine amount will be Rs 5per day.  If no. of days>30, per day fine will be Rs 50 per day and for days less than 30, Rs. 5 per
+day.  After submitting the book, status will change from I to R.  If condition of fine is true, then details will be stored into fine table
+
+
+
+ORRRRRRRR
+
+
+Problem Statement:7
+Unnamed PL/SQLcode block: Use of Control structure and Exception handling is
+mandatory.
+Suggested Problem statement:
+Consider Tables:
+1. Borrower (Roll_no, Name, Date_of_Issue, Name_of_Book, Status)
+2. Fine (Roll_no, Date, Amt)
+● Accept Roll_no and Name_of_Book from user.
+● Check the number of days (from Date_of_Issue).
+● If days are between 15 to 30 then fine amount will be Rs 5per day.
+● If no. of days>30, per day fine will be Rs 50 per day and for days less than 30, Rs. 5 per
+day.
+● After submitting the book, status will change from I to R.
+● If condition of fine is true, then details will be stored into fine table.
+
+
+Step 1: Create the Database and Use It
+
+CREATE DATABASE LibraryDB;
+
+USE LibraryDB;
+
+CREATE TABLE Borrower (
+  Roll_no INT,
+  Name VARCHAR(100),
+  Date_of_Issue DATE,
+  Name_of_Book VARCHAR(100),
+  Status CHAR(1)
+);
+
+CREATE TABLE Fine (
+  Roll_no INT,
+  Date DATE,
+  Amt DECIMAL(10,2)
+);
+
+INSERT INTO Borrower VALUES (101, 'Alice', '2025-10-01', 'Book A', 'I');
+INSERT INTO Borrower VALUES (102, 'Bob', '2025-09-15', 'Book B', 'I');
+INSERT INTO Borrower VALUES (103, 'Charlie', '2025-11-01', 'Book C', 'I');
+
+
+
+Step 4: Create a Stored Procedure for Fine Calculation and Status Update
+DELIMITER //
+
+CREATE PROCEDURE ProcessReturn()
+BEGIN
+  DECLARE input_roll INT DEFAULT 101;
+  DECLARE input_book VARCHAR(100) DEFAULT 'Book A';
+  DECLARE days_diff INT;
+  DECLARE fine_amount DECIMAL(10,2) DEFAULT 0;
+  DECLARE date_issue DATE;
+
+  -- Exception Handler
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    SELECT 'Error occurred. Transaction rolled back.' AS Message;
+  END;
+
+  START TRANSACTION;
+
+  -- Fetch issue date
+  SELECT Date_of_Issue INTO date_issue
+  FROM Borrower
+  WHERE Roll_no = input_roll AND Name_of_Book = input_book AND Status = 'I';
+
+  IF date_issue IS NULL THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'No issued book found for the given details';
+  END IF;
+
+  -- Calculate days difference
+  SET days_diff = DATEDIFF(CURDATE(), date_issue);
+
+  -- Fine calculation
+  IF days_diff BETWEEN 15 AND 30 THEN
+    SET fine_amount = days_diff * 5;
+  ELSEIF days_diff > 30 THEN
+    SET fine_amount = (30 * 5) + ((days_diff - 30) * 50);
+  ELSE
+    SET fine_amount = 0;
+  END IF;
+
+  -- Update status
+  UPDATE Borrower
+  SET Status = 'R'
+  WHERE Roll_no = input_roll AND Name_of_Book = input_book;
+
+  -- Insert fine if applicable
+  IF fine_amount > 0 THEN
+    INSERT INTO Fine (Roll_no, Date, Amt)
+    VALUES (input_roll, CURDATE(), fine_amount);
+  END IF;
+
+  COMMIT;
+
+  SELECT CONCAT('Book "', input_book, '" returned by Roll No ', input_roll,
+                ' with fine = ₹', fine_amount) AS Result;
+END;
+//
+
+DELIMITER ;
+
+-- ✅ Execute procedure
+
+CALL ProcessReturn();
+
+-- ✅ Check results
+SELECT * FROM Borrower;
+SELECT * FROM Fine;
+SELECT * FROM Borrower WHERE Roll_no = 101;
+SELECT * FROM Fine WHERE Roll_no = 101;

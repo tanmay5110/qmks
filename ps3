@@ -1,0 +1,329 @@
+Problem Statement:-3
+
+1. Write a PL/SQL block of code using parameterized Cursor that will merge the data available
+in the newly created table N_Roll_Call with the data available in the table O_Roll_Call. If the
+data in the first table already exists in the second table then that data should be skipped
+
+
+
+
+CREATE TABLE O_Roll_Call (
+  roll_no INT PRIMARY KEY,
+  name VARCHAR(50)
+);
+
+CREATE TABLE N_Roll_Call (
+  roll_no INT,
+  name VARCHAR(50)
+);
+
+
+
+INSERT INTO O_Roll_Call VALUES (1, 'Amit');
+INSERT INTO O_Roll_Call VALUES (2, 'Rohit');
+
+INSERT INTO N_Roll_Call VALUES (2, 'Rohit');
+INSERT INTO N_Roll_Call VALUES (3, 'Sneha');
+INSERT INTO N_Roll_Call VALUES (4, 'Priya');
+
+
+
+DELIMITER //
+
+CREATE PROCEDURE merge_roll_call()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v_roll INT;
+  DECLARE v_name VARCHAR(50);
+  DECLARE existing_count INT;
+
+  DECLARE cur CURSOR FOR SELECT roll_no, name FROM N_Roll_Call;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+  OPEN cur;
+
+  read_loop: LOOP
+    FETCH cur INTO v_roll, v_name;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    -- Check if roll_no already exists in O_Roll_Call
+    SELECT COUNT(*) INTO existing_count
+    FROM O_Roll_Call
+    WHERE roll_no = v_roll;
+
+    -- Insert only if not exists
+    IF existing_count = 0 THEN
+      INSERT INTO O_Roll_Call(roll_no, name)
+      VALUES (v_roll, v_name);
+      SELECT CONCAT('Inserted Roll No: ', v_roll, ' - ', v_name) AS Message;
+    ELSE
+      SELECT CONCAT('Duplicate Found for Roll No: ', v_roll, ' - Skipped') AS Message;
+    END IF;
+
+  END LOOP;
+
+  CLOSE cur;
+END;
+//
+
+DELIMITER ;
+
+
+
+
+CALL merge_roll_call();
+
+
+SELECT * FROM O_Roll_Call;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1 — What the code does (high level)
+
+You have two tables:
+
+O_Roll_Call(roll_no PK, name) — original roll call (existing students).
+
+N_Roll_Call(roll_no, name) — new roll call (new rows to merge).
+
+Goal: insert every row from N_Roll_Call into O_Roll_Call only if the roll_no does not already exist in O_Roll_Call. If it exists, skip it.
+
+Your procedure merge_roll_call() loops through N_Roll_Call using a cursor, checks existence by SELECT COUNT(*), and either inserts or skips each row. It prints a small message per row.
+
+2 — Full explanation: the procedure, line-by-line
+
+I'll show the core procedure then explain each block.
+
+DELIMITER //
+
+CREATE PROCEDURE merge_roll_call()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v_roll INT;
+  DECLARE v_name VARCHAR(50);
+  DECLARE existing_count INT;
+
+  DECLARE cur CURSOR FOR SELECT roll_no, name FROM N_Roll_Call;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+  OPEN cur;
+
+  read_loop: LOOP
+    FETCH cur INTO v_roll, v_name;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+
+    SELECT COUNT(*) INTO existing_count
+    FROM O_Roll_Call
+    WHERE roll_no = v_roll;
+
+    IF existing_count = 0 THEN
+      INSERT INTO O_Roll_Call(roll_no, name)
+      VALUES (v_roll, v_name);
+      SELECT CONCAT('Inserted Roll No: ', v_roll, ' - ', v_name) AS Message;
+    ELSE
+      SELECT CONCAT('Duplicate Found for Roll No: ', v_roll, ' - Skipped') AS Message;
+    END IF;
+
+  END LOOP;
+
+  CLOSE cur;
+END;
+//
+
+DELIMITER ;
+
+DELIMITER //
+
+Switches the MySQL client delimiter so ; inside the procedure body don't prematurely end the CREATE PROCEDURE. // ends the full procedure definition.
+
+CREATE PROCEDURE merge_roll_call()
+
+Declares a stored procedure named merge_roll_call. No parameters here (we will provide a parameterized version later).
+
+DECLARE done INT DEFAULT 0;
+
+A flag variable (done) used to detect end-of-cursor. Initialized to 0 (false).
+
+DECLARE v_roll INT; DECLARE v_name VARCHAR(50); DECLARE existing_count INT;
+
+Local variables to hold fetched row values and the count result.
+
+DECLARE cur CURSOR FOR SELECT roll_no, name FROM N_Roll_Call;
+
+Declares a cursor cur that, when opened, iterates the result set of SELECT roll_no, name FROM N_Roll_Call. The cursor is read-only and forward-only.
+
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+Declares a handler that triggers when a NOT FOUND condition occurs (i.e., FETCH beyond the last row). CONTINUE means after the handler runs, control returns to the next statement. The handler sets done = 1 to mark end-of-data.
+
+OPEN cur;
+
+Opens the cursor — executes the query and prepares to fetch rows.
+
+read_loop: LOOP ... END LOOP;
+
+A labeled loop. The label read_loop allows LEAVE read_loop; to break out of the loop.
+
+FETCH cur INTO v_roll, v_name;
+
+Retrieves the next row from the cursor and stores values into v_roll and v_name. If no row is available, the NOT FOUND handler sets done = 1.
+
+IF done THEN LEAVE read_loop; END IF;
+
+If done was set to 1 by the handler (i.e., no more rows), exit the loop.
+
+SELECT COUNT(*) INTO existing_count FROM O_Roll_Call WHERE roll_no = v_roll;
+
+Checks whether v_roll already exists in O_Roll_Call. COUNT(*) returns number of matching rows (0 or 1 if roll_no is PK).
+
+IF existing_count = 0 THEN INSERT ... ELSE SELECT ... END IF;
+
+If not present, INSERT the new row into O_Roll_Call and print "Inserted ..." message.
+
+If present, print "Duplicate Found ... Skipped".
+
+Printing with SELECT CONCAT(...) AS Message; emits a result row; this is handy for debugging/logging in the client but not required.
+
+CLOSE cur;
+
+Close the cursor to free resources.
+
+END; and DELIMITER ;
+
+End of procedure and revert delimiter to default.
+
+3 — Expected output for your sample data
+
+Given the sample data:
+
+INSERT INTO O_Roll_Call VALUES (1, 'Amit');
+INSERT INTO O_Roll_Call VALUES (2, 'Rohit');
+
+INSERT INTO N_Roll_Call VALUES (2, 'Rohit');
+INSERT INTO N_Roll_Call VALUES (3, 'Sneha');
+INSERT INTO N_Roll_Call VALUES (4, 'Priya');
+
+
+When you CALL merge_roll_call(); the procedure will:
+
+For roll_no=2, name='Rohit': detect existing row and output Duplicate Found for Roll No: 2 - Skipped.
+
+For roll_no=3, name='Sneha': insert into O_Roll_Call and output Inserted Roll No: 3 - Sneha.
+
+For roll_no=4, name='Priya': insert and output Inserted Roll No: 4 - Priya.
+
+Afterwards SELECT * FROM O_Roll_Call; yields:
+
+1 | Amit
+2 | Rohit
+3 | Sneha
+4 | Priya
+
+
+Order depends on PK ordering.
+
+4 — Concepts used & theory (detailed)
+Cursors
+
+A cursor provides row-by-row access to result sets returned by SQL. Useful when per-row processing is needed or when the logic cannot be expressed in a single set-based SQL statement.
+
+Lifecycle: DECLARE CURSOR, OPEN, FETCH repeatedly, CLOSE.
+
+FETCH returns NOT FOUND when past the last row — handle with a condition handler.
+
+Performance note: cursors are slower than set-based operations for large datasets. Use only when necessary.
+
+Condition Handlers
+
+In MySQL stored routines, handlers intercept conditions (like NOT FOUND, SQLEXCEPTION) and run custom code.
+
+You can declare CONTINUE or EXIT handlers. CONTINUE returns control to the next statement; EXIT exits the block.
+
+SELECT INTO
+
+SELECT COUNT(*) INTO existing_count ... stores the query result into a variable. Useful for existence checks. For single-row selects you can also SELECT column INTO variable FROM ... WHERE ... LIMIT 1;
+
+Referential integrity & Primary Key behavior
+
+O_Roll_Call.roll_no is PK so duplicates by roll_no are disallowed. Trying to insert a duplicate would raise a duplicate-key error — the code prevents this by checking count first.
+
+Transactions
+
+Your procedure does not explicitly start a transaction; each INSERT is implicitly committed unless the surrounding client has transaction control. If you need atomicity (all-or-nothing), wrap the whole merge in START TRANSACTION; / COMMIT; and handle rollback on error.
+
+Logging via SELECT
+
+SELECT CONCAT(...) AS Message; returns a single-row result to the client; in scripts this provides feedback. In production, prefer writing to an audit/log table instead of mixing control flow with SELECT outputs.
+
+5 — Edge cases, potential problems & improvements
+Race conditions / concurrency
+
+If other sessions insert into O_Roll_Call concurrently, there is a small race between SELECT COUNT(*) and INSERT — two sessions might both see 0 and both attempt to insert, causing a duplicate-key error for the second insert.
+
+Fix: Use a transactional approach with proper locking or use a set-based INSERT ... SELECT ... WHERE NOT EXISTS which the DB can optimize. Or use INSERT IGNORE / INSERT ... ON DUPLICATE KEY UPDATE depending on needs.
+
+Duplicate checks by name vs roll_no
+
+Your code checks only roll_no. If duplicates should be determined by both roll_no and name, change the WHERE accordingly. Usually PK on roll_no is sufficient.
+
+Large datasets performance
+
+For many rows, cursor + per-row existence checks will be slow (N * log M or N * constant per select). A single set-based INSERT is faster.
+
+Error handling
+
+Your procedure lacks a handler for SQL errors (e.g., duplicate-key on insert). If an insert fails, the procedure might abort. Consider adding an EXIT HANDLER FOR SQLEXCEPTION to rollback a transaction (if used) and return an error message.
+
+Idempotence
+
+If you call merge_roll_call() multiple times, it will try to re-insert the same N_Roll_Call rows not yet merged; but once merged they’ll be skipped — so it is idempotent relative to duplicates. However if N_Roll_Call table contains rows repeatedly, you might need to delete them after merging.
+
+
+
+
+Quick viva-style Q&A (memorize these)
+
+Q: What is a cursor?
+A: A database object that allows row-by-row traversal of a result set inside stored routines.
+
+Q: How do you detect end-of-cursor in MySQL?
+A: Declare a CONTINUE HANDLER FOR NOT FOUND that sets a flag, then after FETCH check the flag.
+
+Q: Why is INSERT ... SELECT WHERE NOT EXISTS faster than cursor-based insertion?
+A: It’s set-based, executed entirely in SQL engine, avoids per-row round-trips and procedural overhead.
+
+Q: What’s a race condition in this context and how to avoid it?
+A: When two sessions concurrently read that a roll_no does not exist then both try to insert — second fails with duplicate key. Avoid with atomic INSERT ... SELECT WHERE NOT EXISTS inside a transaction or use INSERT IGNORE/ON DUPLICATE KEY or locking.
+
+Q: How to log merged rows for auditing?
+A: Insert into an audit table during merge, or use SELECT results to write to logs.
+
+Q: What privileges are needed to run the merge procedure?
+A: SELECT on N_Roll_Call and INSERT on O_Roll_Call. If the procedure creates temporary tables or writes to logs, corresponding privileges are needed.

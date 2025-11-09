@@ -1,0 +1,549 @@
+Problem statement:2
+
+
+Write a Stored Procedure namely proc_Grade for the categorization of student. If marks
+scored by students in examination is <=1500 and marks>=990 then student will be placed
+in distinction category if marks scored are between 989 and900 category is first class, if
+marks 899 and 825 category is Higher Second Class
+Write a PL/SQL block for using procedure created with above requirement.
+Stud_Marks(name, total_marks)
+Result(Roll,Name, Class)
+
+
+
+
+
+/* ====== Grade categorization: full runnable script (MySQL) ====== */
+
+DROP DATABASE IF EXISTS schooldb;
+CREATE DATABASE schooldb;
+USE schooldb;
+
+-- 1) Tables
+DROP TABLE IF EXISTS Result;
+DROP TABLE IF EXISTS Stud_Marks;
+
+CREATE TABLE Stud_Marks (
+  name VARCHAR(100) NOT NULL,
+  total_marks INT NOT NULL
+);
+
+CREATE TABLE Result (
+  Roll INT AUTO_INCREMENT PRIMARY KEY,
+  Name VARCHAR(100),
+  Class VARCHAR(50)
+);
+
+-- 2) Stored procedure proc_Grade (parameterized)
+DROP PROCEDURE IF EXISTS proc_Grade;
+DELIMITER //
+CREATE PROCEDURE proc_Grade(IN stud_name VARCHAR(100), IN marks INT)
+BEGIN
+  DECLARE category VARCHAR(50);
+
+  -- Category rules:
+  -- 990 <= marks <= 1500  => Distinction
+  -- 900 <= marks <= 989   => First Class
+  -- 825 <= marks <= 899   => Higher Second Class
+  -- else => No Category
+
+  IF marks BETWEEN 990 AND 1500 THEN
+    SET category = 'Distinction';
+  ELSEIF marks BETWEEN 900 AND 989 THEN
+    SET category = 'First Class';
+  ELSEIF marks BETWEEN 825 AND 899 THEN
+    SET category = 'Higher Second Class';
+  ELSE
+    SET category = 'No Category';
+  END IF;
+
+  INSERT INTO Result(Name, Class) VALUES (stud_name, category);
+END //
+DELIMITER ;
+
+-- 3) Insert sample data
+INSERT INTO Stud_Marks(name, total_marks) VALUES
+('Alice', 1200),
+('Bob', 950),
+('Charlie', 880),
+('David', 700),
+('Eve', 990),        -- boundary test (should be Distinction)
+('Frank', 899),      -- boundary test (Higher Second Class)
+('Gita', 900),       -- boundary test (First Class)
+('Hari', 1500),      -- upper boundary (Distinction)
+('Isha', 824);       -- just below HSC (No Category)
+
+-- 4) Procedure to iterate over Stud_Marks and call proc_Grade
+DROP PROCEDURE IF EXISTS categorize_all_students;
+DELIMITER //
+CREATE PROCEDURE categorize_all_students()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v_name VARCHAR(100);
+  DECLARE v_marks INT;
+  DECLARE cur CURSOR FOR SELECT name, total_marks FROM Stud_Marks;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+  OPEN cur;
+  read_loop: LOOP
+    FETCH cur INTO v_name, v_marks;
+    IF done = 1 THEN
+      LEAVE read_loop;
+    END IF;
+    CALL proc_Grade(v_name, v_marks);
+  END LOOP;
+  CLOSE cur;
+END //
+DELIMITER ;
+
+-- 5) Execute categorization
+CALL categorize_all_students();
+
+-- 6) Show results
+SELECT * FROM Result ORDER BY Roll;
+
+-- Optional: show Stud_Marks for reference
+SELECT * FROM Stud_Marks ORDER BY name;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+You’re right — you asked for the same kind of **detailed, concept-by-concept explanation** I gave before. Below I’ll **walk through the full script you ran** and explain **every line / block / concept** in depth, point out practical caveats, give alternative approaches, show edge cases and fixes, and finish with a compact **viva-style Q&A** you can memorize. This is long — keep it for your notes or exam prep.
+
+---
+
+# Quick reminder — the working script we explained
+
+(You already ran this; I’ll explain it. If you want the code again, tell me and I’ll paste it.)
+
+---
+
+## 1) Overall purpose & flow (big picture)
+
+* You have a table `Stud_Marks(name, total_marks)` with student marks.
+* You want to classify each student into categories (Distinction, First Class, Higher Second Class, No Category) based on `total_marks`.
+* You implemented a stored procedure `proc_Grade(stud_name, marks)` that given a name & marks computes category and inserts the result into `Result(Roll, Name, Class)`.
+* You then wrote `categorize_all_students()` which uses a **cursor** to iterate over every row in `Stud_Marks` and call `proc_Grade` for each student.
+* Finally you call `categorize_all_students()` and selected `Result` to see the output.
+
+This is a good demonstration of **procedural SQL** inside MySQL: control flow, local variables, cursor looping, and calling sub-procedures.
+
+---
+
+## 2) Schema: tables & their purpose (detailed)
+
+### `Stud_Marks(name VARCHAR(100), total_marks INT)`
+
+* Purpose: input data set of students and their total marks.
+* Data types:
+
+  * `VARCHAR(100)` — flexible string type; stores student name. Note: names are not unique by design here.
+  * `INT` — integer marks.
+* Design notes:
+
+  * You could add `NOT NULL` for both columns (recommended).
+  * In a production schema use `student_id` as primary key (surrogate key) rather than name.
+
+### `Result(Roll INT AUTO_INCREMENT PRIMARY KEY, Name VARCHAR(100), Class VARCHAR(50))`
+
+* Purpose: stores classification results in a persistent table.
+* `AUTO_INCREMENT`:
+
+  * `Roll` is an automatically-incremented integer assigned by MySQL on `INSERT`.
+  * Useful for stable, unique identifiers.
+* `Class` stores the category string.
+
+Design note: Because `proc_Grade` inserts into `Result`, repeated runs will append more rows. If you want idempotent runs (replace previous results), either `TRUNCATE Result;` before running, or change `proc_Grade` to `INSERT ... ON DUPLICATE KEY UPDATE` (requires a unique key on student name).
+
+---
+
+## 3) Stored procedure `proc_Grade` — line-by-line + concepts
+
+```sql
+DELIMITER //
+CREATE PROCEDURE proc_Grade(IN stud_name VARCHAR(100), IN marks INT)
+BEGIN
+  DECLARE category VARCHAR(50);
+  IF marks BETWEEN 990 AND 1500 THEN
+    SET category = 'Distinction';
+  ELSEIF marks BETWEEN 900 AND 989 THEN
+    SET category = 'First Class';
+  ELSEIF marks BETWEEN 825 AND 899 THEN
+    SET category = 'Higher Second Class';
+  ELSE
+    SET category = 'No Category';
+  END IF;
+  INSERT INTO Result(Name, Class) VALUES (stud_name, category);
+END //
+DELIMITER ;
+```
+
+### `DELIMITER //` and why
+
+* Default MySQL client delimiter is `;`. To define a multi-statement stored procedure you must change the delimiter (so the `CREATE PROCEDURE` body isn't terminated early by `;` inside the procedure).
+* `DELIMITER //` sets `//` as the delimiter temporarily; after the procedure you restore `DELIMITER ;`.
+* This is a client-side command — not SQL that the server stores.
+
+### `CREATE PROCEDURE proc_Grade(IN stud_name VARCHAR(100), IN marks INT)`
+
+* Declares a stored procedure named `proc_Grade`.
+* `IN` parameters: input-only. Other modes exist:
+
+  * `OUT` — output-only parameter returned to caller.
+  * `INOUT` — both input and output.
+* Parameter names are local to the procedure.
+
+### `BEGIN ... END`
+
+* The block that contains all the procedural statements.
+
+### `DECLARE category VARCHAR(50);`
+
+* Declares a local variable `category` inside the procedure.
+* Variables declared with `DECLARE` must appear at the top of the block (before procedural statements) in MySQL.
+
+### `IF ... ELSEIF ... ELSE ... END IF;`
+
+* Standard conditional control flow.
+* `BETWEEN a AND b` is inclusive (`a <= value <= b`).
+* Order matters: ranges should be non-overlapping or tested carefully. Using `BETWEEN` in descending order would be wrong; the code uses non-overlapping ranges (990–1500, 900–989, 825–899).
+
+**Important**: Validate boundary conditions. Examples included in your sample (`990`, `899`, `900`, `1500`) help test edges.
+
+### `INSERT INTO Result(Name, Class) VALUES (stud_name, category);`
+
+* Inserts classification result into `Result`.
+* Uses parameters and local variable values.
+
+### `END` and `DELIMITER ;`
+
+* Closes the procedure and restores normal delimiter.
+
+---
+
+## 4) Cursor procedure `categorize_all_students()` — step-by-step
+
+```sql
+DELIMITER //
+CREATE PROCEDURE categorize_all_students()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v_name VARCHAR(100);
+  DECLARE v_marks INT;
+  DECLARE cur CURSOR FOR SELECT name, total_marks FROM Stud_Marks;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+  OPEN cur;
+  read_loop: LOOP
+    FETCH cur INTO v_name, v_marks;
+    IF done = 1 THEN
+      LEAVE read_loop;
+    END IF;
+    CALL proc_Grade(v_name, v_marks);
+  END LOOP;
+  CLOSE cur;
+END //
+DELIMITER ;
+```
+
+### `DECLARE done INT DEFAULT 0;`
+
+* A control variable used to signal end-of-data when the cursor has no more rows.
+
+### `DECLARE v_name VARCHAR(100); DECLARE v_marks INT;`
+
+* Local variables that store values fetched from the cursor.
+
+### `DECLARE cur CURSOR FOR SELECT name, total_marks FROM Stud_Marks;`
+
+* A cursor is a server-side pointer over a result set produced by the SELECT.
+* Cursors are useful for row-by-row processing when you need procedural logic per row.
+
+### `DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;`
+
+* Declares an exception/condition handler for the `NOT FOUND` condition, which occurs when `FETCH` tries to read past last row.
+* `CONTINUE HANDLER` means after the handler runs, execution continues with the next statement.
+* Setting `done = 1` marks that the end has been reached.
+
+Alternative handlers:
+
+* `EXIT HANDLER` would cause the procedure to exit after handling.
+
+### `OPEN cur; FETCH cur INTO v_name, v_marks;`
+
+* `OPEN` initializes the cursor and executes the underlying query.
+* `FETCH` pulls the next row from the cursor and stores its columns into local variables.
+
+### `IF done = 1 THEN LEAVE read_loop; END IF;`
+
+* After `FETCH`, if the handler set `done` because `NOT FOUND` occurred, we break out of the loop with `LEAVE`.
+
+### `CALL proc_Grade(v_name, v_marks);`
+
+* For each row, call `proc_Grade` and pass in name and marks.
+* This is procedural / row-by-row processing.
+
+### `CLOSE cur;`
+
+* Releases cursor resources.
+
+---
+
+## 5) Key concepts & why/when to use them
+
+### Stored Procedures
+
+* Encapsulate reusable logic on the database server.
+* Good for centralizing business rules, reducing network round-trips, and enforcing constraints.
+* Pros: performance (fewer round trips), security (clients don’t need raw SQL privileges), reusability.
+* Cons: harder to version/manage than application code; portability differences across DB engines.
+
+### Cursors
+
+* Useful when you need to perform procedural operations per row which are difficult in a single SQL statement.
+* Row-by-row processing (`RBAR`) is often slower than set-based SQL. Always prefer set-based solutions when possible.
+* Use cursors when logic is too complex for SQL aggregation or `INSERT ... SELECT` patterns.
+
+### Exception/Condition Handlers
+
+* Allow graceful handling of conditions like `NOT FOUND`.
+* Handlers come in two flavors: `CONTINUE` or `EXIT` — choose based on control flow needs.
+
+### `AUTO_INCREMENT`
+
+* Produces unique sequential values per row insertion.
+* Useful for primary keys.
+
+---
+
+## 6) Alternatives and set-based approach (recommended when possible)
+
+Row-by-row loops are fine for learning but in many cases you can do classification in SQL directly:
+
+```sql
+-- set-based classification: insert into Result for all rows in one statement
+INSERT INTO Result (Name, Class)
+SELECT name,
+  CASE
+    WHEN total_marks BETWEEN 990 AND 1500 THEN 'Distinction'
+    WHEN total_marks BETWEEN 900 AND 989  THEN 'First Class'
+    WHEN total_marks BETWEEN 825 AND 899  THEN 'Higher Second Class'
+    ELSE 'No Category'
+  END AS Class
+FROM Stud_Marks;
+```
+
+Advantages:
+
+* Single SQL statement (faster).
+* Avoids cursor overhead and procedural complexity.
+* Easier to maintain.
+
+You can still implement `proc_Grade` for per-record calls, but in practice the `INSERT ... SELECT` with `CASE` is the idiomatic SQL solution.
+
+---
+
+## 7) Edge cases, validation & robustness
+
+### Edge cases & what to consider
+
+* **Out-of-range marks**: your code treats negative marks and >1500 as "No Category" — decide policy.
+* **NULL marks**: if `total_marks` can be NULL, the `BETWEEN` comparisons evaluate to FALSE — `No Category`.
+* **Duplicate names**: using `name` as identifier means two students with same name will both be treated identically but stored as separate rows in `Result`. If you need uniqueness, add `UNIQUE(name)` to `Stud_Marks` or better use a `student_id`.
+* **Repeated runs**: running the cursor multiple times appends new `Result` rows repeatedly. Countermeasure: `TRUNCATE Result;` before running categorize, or add uniqueness and `INSERT ... ON DUPLICATE KEY UPDATE`.
+* **Transactionality**: If you want the entire run to be atomic (either all students processed and inserted, or nothing), wrap `categorize_all_students()` calls inside a transaction. Stored procedures can use `START TRANSACTION`, `COMMIT`, and `ROLLBACK`. But note: long transactions have locking and performance implications.
+* **Concurrency**: If multiple clients call the procedure concurrently, be mindful about concurrent inserts to `Result`. `AUTO_INCREMENT` handles that but you might need to avoid race conditions if you check or update other shared tables.
+
+### Defensive coding ideas
+
+* Validate `marks` inside `proc_Grade` and handle `NULL` with `IF marks IS NULL THEN ...`.
+* If `Stud_Marks` is big, prefer the set-based `INSERT ... SELECT` approach.
+
+---
+
+## 8) Example run & how the results are produced (flow)
+
+Given sample data:
+
+```
+('Alice', 1200)  -> Distinction
+('Bob', 950)     -> First Class
+('Charlie', 880) -> Higher Second Class
+('David', 700)   -> No Category
+```
+
+* `categorize_all_students()` opens cursor, fetches first row (`Alice,1200`), calls `proc_Grade('Alice',1200)` which inserts `('Alice','Distinction')` into `Result` with `Roll = 1`.
+* Repeat for other rows; `Result` table gets multiple rows with incrementing `Roll`.
+
+---
+
+## 9) Practical improvements & variants (copy-paste patterns)
+
+### 9.1 Make `proc_Grade` return the category via OUT parameter
+
+```sql
+CREATE PROCEDURE proc_Grade(IN stud_name VARCHAR(100), IN marks INT, OUT out_category VARCHAR(50))
+BEGIN
+  IF marks BETWEEN 990 AND 1500 THEN
+    SET out_category = 'Distinction';
+  ...
+  END IF;
+  INSERT INTO Result(Name, Class) VALUES (stud_name, out_category);
+END;
+```
+
+Then caller can read `out_category`.
+
+### 9.2 Idempotent run (clear previous results)
+
+Wrap the categorization call with `TRUNCATE Result;` to avoid duplicates:
+
+```sql
+TRUNCATE TABLE Result;
+CALL categorize_all_students();
+```
+
+### 9.3 Use `INSERT ... SELECT` instead of cursor (faster & simpler)
+
+(Shown earlier)
+
+### 9.4 Add `student_id` and use it as PK
+
+```sql
+ALTER TABLE Stud_Marks ADD COLUMN student_id INT AUTO_INCREMENT PRIMARY KEY FIRST;
+-- Then change Result to store student_id too for stable mapping
+```
+
+### 9.5 Add logging / audit
+
+Add a `processed_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP` to `Result` to log run time.
+
+---
+
+## 10) MySQL specific behavior & gotchas
+
+* Stored procedure syntax differs slightly across RDBMS. `DELIMITER` is a client feature for MySQL client.
+* `BETWEEN` is inclusive.
+* `DECLARE` variables must appear before other statements in stored procedures.
+* Cursors in MySQL are read-only and non-scrollable; you can’t do random access.
+* `CONTINUE HANDLER FOR NOT FOUND SET done = 1;` is standard pattern for cursor end detection.
+* Not all servers enforce `CHECK` constraints; MySQL 8+ supports them but older versions may ignore.
+
+---
+
+## 11) Performance and when to avoid cursors
+
+* Cursors are fine for small tables or when logic is inherently procedural.
+* For large tables (thousands+ rows), set-based SQL is *much* faster. Cursors introduce context switching between SQL engine and stored-proc engine and can be slow.
+* Use `EXPLAIN` and monitor runtime for performance tuning.
+
+---
+
+## 12) Full list of important terms you should know for viva
+
+* Stored Procedure, Function, Trigger
+* DELIMITER
+* IN / OUT / INOUT parameters
+* DECLARE variable
+* IF / ELSEIF / ELSE / END IF blocks
+* CASE expression vs IF statement
+* Cursor lifecycle: DECLARE CURSOR, OPEN, FETCH, CLOSE
+* Condition handlers: CONTINUE HANDLER, EXIT HANDLER, SQLEXCEPTION, NOT FOUND
+* AUTO_INCREMENT
+* INSERT ... SELECT (set-based alternative)
+* Transactions: START TRANSACTION / COMMIT / ROLLBACK
+* Referential integrity, primary & foreign keys
+* CHECK / NOT NULL / UNIQUE constraints
+* Aggregate functions: SUM, AVG (not directly used here but useful)
+* Concurrency & locking basics (brief)
+* `BETWEEN` inclusivity
+* `TRUNCATE` vs `DELETE`
+
+---
+
+## 13) Viva-style Q&A (short, memorisable)
+
+Q: Why use `DELIMITER` when creating procedures?
+A: To allow `;` inside the procedure body without prematurely ending the `CREATE PROCEDURE` statement.
+
+Q: What does `IN` parameter mean?
+A: Input-only parameter; caller provides value; procedure cannot change its value for the caller.
+
+Q: How does a cursor signal end of rows?
+A: `FETCH` after the last row triggers `NOT FOUND` condition; a handler (e.g., `CONTINUE HANDLER FOR NOT FOUND`) sets a flag (e.g., `done = 1`) so you can exit the loop.
+
+Q: Why avoid cursors for large data sets?
+A: They are row-by-row (slow); set-based SQL does operations in bulk and is much faster.
+
+Q: How to make the classification run idempotent?
+A: Truncate `Result` before running, or use `INSERT ... ON DUPLICATE KEY UPDATE` with a unique key on student name.
+
+Q: What happens if `total_marks` is NULL?
+A: `BETWEEN` yields UNKNOWN (treated as false); your `ELSE` path assigns 'No Category'. Better to validate or use `COALESCE`.
+
+Q: How to return the category from `proc_Grade`?
+A: Use an `OUT` parameter and set it inside the procedure.
+
+Q: When would you use triggers instead of procedures for classification?
+A: Use triggers to automatically classify when new rows are inserted into `Stud_Marks`, but triggers can be harder to manage and test.
+
+---
+
+## 14) Printable cheat sheet (one paragraph summary)
+
+This script demonstrates procedural SQL in MySQL: a parameterized stored procedure `proc_Grade` classifies students by marks using `IF`/`BETWEEN` logic and inserts into a `Result` table, while a cursor-based procedure `categorize_all_students` iterates rows in `Stud_Marks` and calls `proc_Grade` for each student. Key constructs used include `DELIMITER`, `DECLARE` (variables, cursor, handler), `OPEN/FETCH/CLOSE` cursor operations, `CONTINUE HANDLER FOR NOT FOUND` for end-of-data detection, `AUTO_INCREMENT` for primary keys, and `INSERT`. A set-based `INSERT ... SELECT CASE ...` is a faster alternative for bulk classification; cursors are appropriate when per-row procedural logic is required.
+
+---
+
+If you want I can now:
+
+* (A) produce a **line-by-line commented copy** of your exact code (every line commented inline) so you can paste into your notes, **or**
+* (B) give the **set-based single-statement solution** (INSERT ... SELECT ...) and explain why it’s faster with a micro-benchmark script, **or**
+* (C) convert `proc_Grade` to an `OUT`-parameter version and show how to call it and read the OUT value.
+
+Tell me A, B, or C (or “all three”), and I’ll paste the code and explanations.

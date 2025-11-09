@@ -1,0 +1,510 @@
+
+Problem Statement:4
+
+Create following collections and Perform Mongodb CRUD Operations.
+Teachers (Tname, dno, dname, experience, salary, date_of_joining )
+Students(Sname, roll_no, class)
+1. Find the information about all teachers alphabetically.
+2. Find the information about all teachers of the computer department
+3. Find the information about all teachers of computer,IT,and e&TC department
+4. Find the information about all teachers of computer,IT,and E&TC department having
+salary greater than or equal to 10000/-
+6. Find the student information having roll_no = 2 or Sname=xyz
+7. Update the experience of teacher-praveen to 10 years, if the entry is not available in
+database consider the entry as new entry.
+9. Update the department of all the teachers working in IT department to COMP
+10. find the teacher's name and their experience from teachers’ collection
+11. Delete all the documents from teacher's collection having IT dept.
+12. display with pretty() method, the first 3 documents in teacher's collection in ascending
+order.
+
+
+
+
+Step 1: Create Collections and Insert Sample Data
+
+// Use your database
+
+use schoolDB;
+
+// Insert sample teachers
+db.Teachers.insertMany([
+  { Tname: "Praveen", dno: 1, dname: "Computer", experience: 8, salary: 12000, date_of_joining: ISODate("2018-05-01") },
+  { Tname: "Anita", dno: 2, dname: "IT", experience: 6, salary: 11000, date_of_joining: ISODate("2019-06-15") },
+  { Tname: "Ramesh", dno: 3, dname: "E&TC", experience: 7, salary: 9500, date_of_joining: ISODate("2017-03-10") },
+  { Tname: "Kiran", dno: 1, dname: "Computer", experience: 5, salary: 10500, date_of_joining: ISODate("2020-08-20") }
+]);
+
+
+// Insert sample students
+db.Students.insertMany([
+  { Sname: "Xyz", roll_no: 1, class: "10th" },
+  { Sname: "Abhi", roll_no: 2, class: "12th" },
+  { Sname: "John", roll_no: 3, class: "11th" }
+]);
+
+Step 2: Queries for Required Operations
+
+Find all teachers alphabetically by name
+
+db.Teachers.find().sort({ Tname: 1 });
+
+
+Find teachers of the Computer department
+
+
+db.Teachers.find({ dname: "Computer" });
+
+
+Find teachers of Computer, IT, and E&TC departments
+
+db.Teachers.find({ dname: { $in: ["Computer", "IT", "E&TC"] } });
+
+
+Find teachers of Computer, IT, and E&TC with salary >= 10000
+
+db.Teachers.find({ dname: { $in: ["Computer", "IT", "E&TC"] }, salary: { $gte: 10000 } });
+
+
+Find student with roll_no = 2 or Sname = "xyz"
+
+db.Students.find({ $or: [{ roll_no: 2 }, { Sname: "xyz" }] });
+
+
+Update Praveen’s experience to 10 years or insert new if not exists
+
+db.Teachers.updateOne(
+  { Tname: "Praveen" },
+  { $set: { experience: 10 } },
+  { upsert: true }
+);
+
+
+Update department of all IT department teachers to COMP
+
+db.Teachers.updateMany(
+  { dname: "IT" },
+  { $set: { dname: "COMP" } }
+);
+
+
+Find teachers' names and their experience
+
+db.Teachers.find({}, { _id: 0, Tname: 1, experience: 1 });
+
+
+Delete all teachers from IT department
+
+db.Teachers.deleteMany({ dname: "IT" });
+
+
+Display first 3 documents in ascending order prettily
+
+db.Teachers.find().sort({ Tname: 1 }).limit(3).pretty();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Nice — I’ll walk you through **Problem Statement 4** end-to-end the same way I did for SQL:
+
+* explain every MongoDB command you wrote, line-by-line;
+* cover the MongoDB concepts used (collections, documents, queries, operators, upsert, projection, indexes, pretty(), etc.);
+* point out caveats, case-sensitivity, and common errors;
+* show expected outputs for the sample data;
+* give viva/quick Q&A and a few suggested improvements (indexes, validation).
+
+I’ll keep it practical and copy-paste friendly so you can add it straight to your notes.
+
+---
+
+# 1) Quick recap — what you did
+
+You created two collections:
+
+* `Teachers` documents with fields: `Tname, dno, dname, experience, salary, date_of_joining`
+* `Students` documents with fields: `Sname, roll_no, class`
+
+Then you ran several queries: finds, filters with `$in` and `$gte`, `$or`, `updateOne` with `upsert`, `updateMany`, `deleteMany`, projection, sort, limit and `pretty()`.
+
+---
+
+# 2) Create + insert (explanation)
+
+```js
+use schoolDB;
+```
+
+* `use` switches to the `schoolDB` database (created implicitly when you first insert).
+
+```js
+db.Teachers.insertMany([
+  { Tname: "Praveen", dno: 1, dname: "Computer", experience: 8, salary: 12000, date_of_joining: ISODate("2018-05-01") },
+  { Tname: "Anita", dno: 2, dname: "IT", experience: 6, salary: 11000, date_of_joining: ISODate("2019-06-15") },
+  { Tname: "Ramesh", dno: 3, dname: "E&TC", experience: 7, salary: 9500, date_of_joining: ISODate("2017-03-10") },
+  { Tname: "Kiran", dno: 1, dname: "Computer", experience: 5, salary: 10500, date_of_joining: ISODate("2020-08-20") }
+]);
+```
+
+* `insertMany()` inserts multiple documents at once.
+* `ISODate("YYYY-MM-DD")` stores a BSON `Date` object (useful for date queries and sorting).
+* MongoDB will automatically add `_id` (ObjectId) to each inserted document.
+
+```js
+db.Students.insertMany([
+  { Sname: "Xyz", roll_no: 1, class: "10th" },
+  { Sname: "Abhi", roll_no: 2, class: "12th" },
+  { Sname: "John", roll_no: 3, class: "11th" }
+]);
+```
+
+* `Students` sample data.
+
+---
+
+# 3) Each required operation — what it does, why, expected result
+
+### 1. Find all teachers alphabetically by name
+
+```js
+db.Teachers.find().sort({ Tname: 1 });
+```
+
+* `find()` with no filter returns all docs.
+* `sort({ Tname: 1 })` sorts ascending (use `-1` for descending).
+* Expected output (order): Anita, Kiran, Praveen, Ramesh (because alphabetical).
+
+**Note:** Sorting on fields that are not indexed may require an in-memory sort and can be slower for big collections — add an index on `Tname` if you sort/search by it frequently.
+
+---
+
+### 2. Find all teachers of the Computer department
+
+```js
+db.Teachers.find({ dname: "Computer" });
+```
+
+* Filters where `dname` equals the string `"Computer"`.
+* Exact match, case-sensitive (unless you use collation or regex).
+
+---
+
+### 3. Find teachers of Computer, IT, and E&TC departments
+
+```js
+db.Teachers.find({ dname: { $in: ["Computer", "IT", "E&TC"] } });
+```
+
+* `$in` matches if the field value is **any** value in the provided array.
+
+---
+
+### 4. Same departments but salary >= 10000
+
+```js
+db.Teachers.find({ dname: { $in: ["Computer", "IT", "E&TC"] }, salary: { $gte: 10000 } });
+```
+
+* Multiple conditions in the same object are ANDed.
+* `$gte` is "greater than or equal".
+
+---
+
+### 6. Find student info having roll_no = 2 or Sname = "xyz"
+
+```js
+db.Students.find({ $or: [{ roll_no: 2 }, { Sname: "xyz" }] });
+```
+
+* `$or` accepts an array of conditions; document matches if any sub-condition is true.
+* Note: `"xyz"` vs `"Xyz"` — exact string match is case sensitive by default.
+
+---
+
+### 7. Update experience of teacher Praveen to 10 years; insert if not exists (`upsert`)
+
+```js
+db.Teachers.updateOne(
+  { Tname: "Praveen" },
+  { $set: { experience: 10 } },
+  { upsert: true }
+);
+```
+
+* `updateOne(filter, update, options)`.
+* `$set` updates only the specified field (`experience`); other fields remain unchanged.
+* `upsert: true` = if no doc matches filter, insert a new document formed by combining filter and update (note: only fields in filter + fields in `$set` will appear in the new doc).
+* Example: if Praveen wasn’t present, the inserted doc would be `{ Tname: "Praveen", experience: 10 }` (no salary or dname unless provided).
+
+**Tip:** If you use `upsert`, be explicit in `update` about other required fields or perform a subsequent update.
+
+---
+
+### 9. Update department of all teachers working in IT to COMP
+
+```js
+db.Teachers.updateMany(
+  { dname: "IT" },
+  { $set: { dname: "COMP" } }
+);
+```
+
+* `updateMany` updates all documents matching the filter.
+* Use carefully — this changes the field value for all selected docs.
+
+---
+
+### 10. Find teachers' name and their experience (projection)
+
+```js
+db.Teachers.find({}, { _id: 0, Tname: 1, experience: 1 });
+```
+
+* The second parameter is the **projection**: which fields to return.
+* `_id: 0` hides the `_id` field (by default `_id` is always included unless explicitly excluded).
+* `Tname: 1` includes the fields. Can also use `.project()` in aggregation or drivers.
+
+---
+
+### 11. Delete all documents from teacher's collection having IT dept.
+
+```js
+db.Teachers.deleteMany({ dname: "IT" });
+```
+
+* `deleteMany` removes all documents that match the filter.
+* **Be careful**: deletion is irreversible unless you have backups.
+
+---
+
+### 12. Display with pretty() the first 3 documents in ascending order
+
+```js
+db.Teachers.find().sort({ Tname: 1 }).limit(3).pretty();
+```
+
+* `limit(3)` restricts result set to first 3 docs.
+* `.pretty()` formats the output in the shell for readability (no effect in drivers or mongosh — mongosh formats automatically).
+
+---
+
+# 4) Expected outputs (based on the sample data)
+
+Given the inserted `Teachers`:
+
+```text
+{Tname:"Praveen", dname:"Computer", experience:8, salary:12000, date_of_joining:2018-05-01}
+{Tname:"Anita", dname:"IT", experience:6, salary:11000, date_of_joining:2019-06-15}
+{Tname:"Ramesh", dname:"E&TC", experience:7, salary:9500, date_of_joining:2017-03-10}
+{Tname:"Kiran", dname:"Computer", experience:5, salary:10500, date_of_joining:2020-08-20}
+```
+
+* `find().sort({Tname:1})` returns Anita, Kiran, Praveen, Ramesh.
+* `find({ dname: "Computer" })` returns Praveen and Kiran.
+* `$in` query returns all documents (Computer, IT, E&TC).
+* `$gte:10000` with `$in` returns Praveen (12000), Anita (11000), Kiran (10500) — Ramesh (9500) is excluded.
+* `Students` `$or` with roll_no 2 or Sname "xyz": case matters — only `roll_no:2` matches `Abhi`. If Sname was "Xyz" not "xyz", the lowercase "xyz" would not match.
+
+---
+
+# 5) Important MongoDB concepts & theory (expanded)
+
+### Documents vs Collections
+
+* Documents are JSON-like (`BSON`) objects. Collections are sets of documents (loosely analogous to tables).
+* Flexible schema: different documents in same collection can have different fields.
+
+### Operators
+
+* Comparison: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`
+* Logical: `$and`, `$or`, `$not`, `$nor` (implicit AND when multiple keys in same filter)
+* Array: `$in`, `$nin`, `$all`, etc.
+* Update: `$set`, `$unset`, `$inc`, `$push`, `$addToSet`, `$pull`
+
+### Projection
+
+* Control which fields are returned. `{ field: 1 }` includes, `{ field: 0 }` excludes; mixing inclusion and exclusion is restricted (except `_id`).
+
+### upsert
+
+* `upsert: true` combines update & insert. If no match, a new document is created. When used with update operators (`$set`), if you want full doc in upsert you must use `$setOnInsert` for fields only on insert.
+
+### Indexes
+
+* Create indexes to speed up queries:
+
+  ```js
+  db.Teachers.createIndex({ Tname: 1 });
+  db.Teachers.createIndex({ dname: 1, salary: -1 }); // compound index useful for dname & salary queries
+  ```
+* Use `explain()` to check whether index is used: `db.Teachers.find({ dname: "Computer" }).explain("executionStats")`
+
+### Date fields
+
+* Store as `ISODate` (BSON date) for correct sorting and date operators (`$gte`, `$lt`, date arithmetic).
+
+### Deletion risks
+
+* `deleteMany({})` deletes everything — always test filters with `find()` first.
+
+### Case-sensitivity & collation
+
+* By default string matches are case-sensitive. Use collation or regex for case-insensitive search:
+
+  ```js
+  db.Teachers.find({ Tname: /praveen/i }); // regex, case-insensitive
+  // or
+  db.Teachers.find({ Tname: "praveen" }).collation({ locale: "en", strength: 2 });
+  ```
+
+---
+
+# 6) Common mistakes & how to avoid them
+
+* **Using upsert accidentally**: `upsert:true` will insert partial documents — if you forget important fields they’ll be absent. Check inserted doc if you used upsert.
+* **Not indexing frequently queried fields**: can cause full-collection scans and slow queries.
+* **Relying on .pretty() in scripts**: `.pretty()` is shell helper — not used in application drivers.
+* **Assuming schema**: documents may lack a field; always code defensively (`$exists`, default values).
+
+---
+
+# 7) Practical improvements & best practices
+
+1. **Schema validation** (MongoDB 3.6+):
+
+   * Define a JSON Schema validator so `dname` and `salary` have correct types.
+
+   ```js
+   db.createCollection("Teachers", {
+     validator: {
+       $jsonSchema: {
+         bsonType: "object",
+         required: ["Tname","dno","dname","experience","salary","date_of_joining"],
+         properties: {
+           Tname: { bsonType: "string" },
+           dno: { bsonType: "int" },
+           salary: { bsonType: "int" }
+         }
+       }
+     }
+   });
+   ```
+
+2. **Indexes**:
+
+   * Add index on `dname`, `salary` (compound) and `Tname` for searches & sorts.
+
+   ```js
+   db.Teachers.createIndex({ dname: 1 });
+   db.Teachers.createIndex({ Tname: 1 });
+   db.Teachers.createIndex({ dname: 1, salary: -1 });
+   ```
+
+3. **Upsert safety**:
+
+   * Use `$setOnInsert` with `upsert:true` to populate fields only on insert.
+
+   ```js
+   db.Teachers.updateOne(
+     { Tname: "Praveen" },
+     { $set: { experience: 10 }, $setOnInsert: { date_of_joining: ISODate(), salary: 0 } },
+     { upsert: true }
+   );
+   ```
+
+4. **Case-insensitive search**:
+
+   * Use collation or regex as shown earlier.
+
+5. **Backups before deletes**:
+
+   * Export collection or copy documents to audit collection before `deleteMany`.
+
+---
+
+# 8) Sample shell session & expected outputs (quick)
+
+1. Find teachers alphabetically:
+
+```text
+> db.Teachers.find().sort({Tname:1}).pretty()
+{
+  _id: ObjectId("..."),
+  Tname: "Anita", dname: "IT", ...
+}
+...
+```
+
+2. Update Praveen experience (if absent adds):
+
+```text
+> db.Teachers.updateOne({Tname:"Praveen"}, {$set:{experience:10}}, {upsert:true})
+{ acknowledged: true, matchedCount: 1, modifiedCount: 1, upsertedId: null }
+```
+
+3. Update all IT -> COMP:
+
+```text
+> db.Teachers.updateMany({dname:"IT"}, {$set:{dname:"COMP"}})
+{ acknowledged: true, matchedCount: 1, modifiedCount: 1 }
+```
+
+4. Delete IT dept docs:
+
+```text
+> db.Teachers.deleteMany({dname:"IT"})
+{ acknowledged: true, deletedCount: 0 } // 0 if you already updated to COMP
+```
+
+---
+
+# 9) Viva / short Q&A — memorize these
+
+Q: What’s the difference between `find()` and `findOne()`?
+A: `find()` returns a cursor for multiple docs; `findOne()` returns the first matching document.
+
+Q: How does `$in` differ from multiple OR conditions?
+A: `$in: [a,b]` is shorthand for `{ $or: [ {field:a}, {field:b} ] }` — it's more compact and often more efficient.
+
+Q: What does `upsert` do?
+A: If update finds no match, it inserts a new document composed from the query and update fields.
+
+Q: How to update many documents?
+A: `updateMany(filter, update)` — it modifies all matching docs.
+
+Q: How to pretty-print results in shell?
+A: Use `.pretty()` in the legacy shell; `mongosh` formats results nicely by default.
+
+Q: How to make case-insensitive string match?
+A: Use regex with `i` flag (`/text/i`) or set a case-insensitive collation.
+
+Q: Why create indexes?
+A: Speed up queries and sorts; avoid full-collection scans. But they cost disk and slow writes.
+
+---
+
+# 10) Want me to… (choose one)
+
+* A) Produce a runnable `.js` or `.mongo` script that creates collections, inserts data, and runs all queries with printed labels.
+* B) Give you an optimized version with indexes and schema validation included (copy-paste ready).
+* C) Show aggregation examples for the same tasks (e.g., group by department, average salary).
+* D) Make a one-page printable viva sheet with all commands and Q/A.
+
+Which one do you want next?

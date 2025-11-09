@@ -1,0 +1,711 @@
+Problem Statement:6
+A retail company maintains a MongoDB collection named customer. Each document in this
+collection represents a purchase and contains fields such as cid (Customer ID), cname
+(Customer Name), amount (Amount spent on product purchase), and product_name (Product
+Name).
+Implement a MapReduce function in MongoDB to analyze the customer collection and
+produce a summarized report that displays the total amount spent by each customer on
+product purchases.
+
+
+
+
+use retailDB
+db.customer.drop()
+
+db.customer.insertMany([
+  { cid: 1, cname: "Alice",   amount: 250, product_name: "Notebook" },
+  { cid: 2, cname: "Bob",     amount: 400, product_name: "Pen" },
+  { cid: 1, cname: "Alice",   amount: 150, product_name: "Bag" },
+  { cid: 3, cname: "Charlie", amount: 300, product_name: "Calculator" },
+  { cid: 2, cname: "Bob",     amount: 200, product_name: "Notebook" }
+])
+
+print("===== Customer Collection =====")
+db.customer.find().pretty()
+
+// Map function
+
+var mapFunction = function() {
+  emit(this.cid, this.amount);
+};
+
+// Reduce function
+
+var reduceFunction = function(cid, amounts) {
+  return Array.sum(amounts);
+};
+
+// Run MapReduce
+
+db.customer.mapReduce(
+  mapFunction,
+  reduceFunction,
+  { out: "total_amount_per_customer" }
+);
+
+// Display Results
+
+print("===== Total Amount per Customer (by ID) =====")
+db.total_amount_per_customer.find().pretty()
+
+// Optional by name
+
+var mapFunction2 = function() {
+  emit(this.cname, this.amount);
+};
+
+db.customer.mapReduce(
+  mapFunction2,
+  reduceFunction,
+  { out: "total_amount_per_customer_name" }
+);
+
+print("===== Total Amount per Customer (by Name) =====")
+db.total_amount_per_customer_name.find().pretty()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Nice — I’ll give you the **same full treatment** for Problem 6: a clear line-by-line explanation of your MapReduce script, the MongoDB concepts used, expected outputs, edge cases, performance notes, a safer **aggregation** alternative (recommended), and a short viva-style Q&A. Copy-paste friendly and exam-ready.
+
+---
+
+# 1 — What the script does (high level)
+
+You have a `customer` collection where each document is a purchase:
+
+```js
+{ cid: <customer id>, cname: <customer name>, amount: <number>, product_name: <string> }
+```
+
+Goal: compute total money spent per customer (both by `cid` and optionally by `cname`) using MapReduce and store results in collections:
+
+* `total_amount_per_customer` (keyed by `cid`)
+* `total_amount_per_customer_name` (keyed by `cname`)
+
+---
+
+# 2 — The full runnable code (your script, copy-paste ready)
+
+```js
+use retailDB
+db.customer.drop()
+
+db.customer.insertMany([
+  { cid: 1, cname: "Alice",   amount: 250, product_name: "Notebook" },
+  { cid: 2, cname: "Bob",     amount: 400, product_name: "Pen" },
+  { cid: 1, cname: "Alice",   amount: 150, product_name: "Bag" },
+  { cid: 3, cname: "Charlie", amount: 300, product_name: "Calculator" },
+  { cid: 2, cname: "Bob",     amount: 200, product_name: "Notebook" }
+])
+
+print("===== Customer Collection =====")
+db.customer.find().pretty()
+
+// Map function
+var mapFunction = function() {
+  emit(this.cid, this.amount);
+};
+
+// Reduce function
+var reduceFunction = function(key, values) {
+  return Array.sum(values);
+};
+
+// Run MapReduce (by cid)
+db.customer.mapReduce(
+  mapFunction,
+  reduceFunction,
+  { out: "total_amount_per_customer" }
+);
+
+print("===== Total Amount per Customer (by ID) =====")
+db.total_amount_per_customer.find().pretty()
+
+// Optional by name
+var mapFunction2 = function() {
+  emit(this.cname, this.amount);
+};
+
+db.customer.mapReduce(
+  mapFunction2,
+  reduceFunction,
+  { out: "total_amount_per_customer_name" }
+);
+
+print("===== Total Amount per Customer (by Name) =====")
+db.total_amount_per_customer_name.find().pretty()
+```
+
+---
+
+# 3 — Line-by-line explanation & concepts
+
+### `use retailDB` / `db.customer.drop()` / `insertMany(...)`
+
+* Switch to the `retailDB` DB, remove old `customer` collection, and insert sample purchase documents.
+* `insertMany()` inserts multiple documents; each gets an `_id`.
+
+### MapReduce basics — map, reduce, emit
+
+MongoDB’s MapReduce uses two user-defined JS functions:
+
+**Map function** (runs once per document):
+
+```js
+var mapFunction = function() {
+  emit(this.cid, this.amount);
+};
+```
+
+* `emit(key, value)` outputs intermediate (key, value) pairs.
+* Here key = `cid`, value = `amount` for each purchase.
+
+**Reduce function** (runs once per key, receives array of values):
+
+```js
+var reduceFunction = function(key, values) {
+  return Array.sum(values);
+};
+```
+
+* `values` is an array of numbers (amounts) for a given key.
+* `Array.sum(values)` is a helper that sums numeric array items.
+
+**Flow**:
+
+1. Map: produce many (cid → amount) pairs.
+2. Shuffle/Sort: group values by key.
+3. Reduce: for each key, apply reduce to the list of values → one output value per key.
+
+### `db.customer.mapReduce(mapFunction, reduceFunction, { out: "total_amount_per_customer" })`
+
+* Runs MapReduce and writes results into a collection named `total_amount_per_customer`.
+* The `out` collection will contain documents like:
+
+  ```js
+  { _id: <cid>, value: <sum> }
+  ```
+
+### Printing results
+
+* `db.total_amount_per_customer.find().pretty()` shows aggregated totals.
+
+### Optional second run by `cname`
+
+* Map emits by `cname` for aggregating totals by customer name instead of id.
+
+---
+
+# 4 — Expected results (for your sample data)
+
+Input purchases:
+
+* cid 1 (Alice): 250 + 150 = **400**
+* cid 2 (Bob): 400 + 200 = **600**
+* cid 3 (Charlie): 300 = **300**
+
+`db.total_amount_per_customer.find().pretty()` yields (order may vary):
+
+```js
+{ "_id" : 1, "value" : 400 }
+{ "_id" : 2, "value" : 600 }
+{ "_id" : 3, "value" : 300 }
+```
+
+By name:
+
+```js
+{ "_id" : "Alice", "value": 400 }
+{ "_id" : "Bob",   "value": 600 }
+{ "_id" : "Charlie","value":300 }
+```
+
+---
+
+# 5 — Important notes, caveats & edge cases
+
+### 1) MapReduce deprecation note
+
+* **MapReduce is deprecated** in newer MongoDB versions (server-side mapReduce may be discouraged). The aggregation framework (`$group`) is usually faster and preferred.
+* Use MapReduce only if you need complex JavaScript-based processing that aggregation can’t express.
+
+### 2) Keys and collisions
+
+* Using `cname` (name) as key is fine but names may not be unique. Aggregating by `cname` groups all documents with the same name (which might belong to different customers with same name). `cid` is safer if unique.
+
+### 3) Value types
+
+* Ensure `amount` is numeric; `Array.sum` converts strings poorly. Use proper numeric types or pre-validate.
+
+### 4) Storage of results
+
+* `out: "collectionName"` creates/overwrites that collection. You can also `out: { inline: 1 }` to return results inline without creating a collection (useful for small results).
+* Example: `{ out: { replace: "total_amount_per_customer" } }` (default), or `{ out: { merge: "targetCollection" } }` to merge results into existing collection.
+
+### 5) Concurrency & atomicity
+
+* MapReduce output collection replacement is atomic; yet if multiple jobs run concurrently with same `out` target, careful coordination is required.
+
+### 6) Large data & performance
+
+* MapReduce uses JavaScript execution and may be slower than aggregation pipeline. For large datasets, prefer aggregation pipeline with `$group` (and indexes for pre-filtering).
+
+---
+
+# 6 — Recommended: Aggregation pipeline equivalent (faster & preferred)
+
+Do the same total-by-cid with aggregation:
+
+```js
+// Total amount per cid (aggregation)
+db.customer.aggregate([
+  { $group: { _id: "$cid", totalAmount: { $sum: "$amount" } } },
+  { $sort: { totalAmount: -1 } } // optional
+]).pretty();
+```
+
+By name:
+
+```js
+db.customer.aggregate([
+  { $group: { _id: "$cname", totalAmount: { $sum: "$amount" } } },
+  { $sort: { _id: 1 } }
+]).pretty();
+```
+
+**Why aggregation?**
+
+* Runs native C++ pipeline, often faster.
+* Cleaner, easier to maintain.
+* Supports `allowDiskUse` for big groups.
+
+---
+
+# 7 — Performance improvements & indexing
+
+* If you often compute totals for a subset (e.g., date range), add index on fields used in `$match` stage (e.g., `product_name`, `cid`, `purchase_date` if present).
+* Aggregation can push `$match` early to reduce docs processed:
+
+  ```js
+  db.customer.aggregate([
+    { $match: { product_name: "Notebook" } },
+    { $group: { _id: "$cid", totalAmount: { $sum: "$amount" } } }
+  ])
+  ```
+
+---
+
+# 8 — Extensions & production quality suggestions
+
+* **Audit & history:** store per-run metadata (timestamp, run id) in the output collection.
+* **Prevent double-processing:** if you plan to process incremental data, add a flag in purchases (e.g., `processed: true`) or store last processed `_id`/timestamp.
+* **Use `$merge` in aggregation** to store results into a collection with flexible modes (`replace`, `merge`, `keepExisting`, `fail`):
+
+  ```js
+  db.customer.aggregate([
+    { $group: { _id: "$cid", totalAmount: { $sum: "$amount" } } },
+    { $merge: { into: "total_amount_per_customer", whenMatched: "replace", whenNotMatched: "insert" } }
+  ])
+  ```
+
+  `$merge` replaces the need for MapReduce `out` modes and is recommended.
+
+---
+
+# 9 — How to inspect MapReduce job & options
+
+* MapReduce accepts other options such as `query` (pre-filter), `sort` (pre-sort), `limit`, `scope` (inject server-side variables), and `jsMode` (use JavaScript engine optimizations; experimental).
+* Example with filter:
+
+  ```js
+  db.customer.mapReduce(mapFunction, reduceFunction, { out: "result", query: { product_name: "Notebook" } });
+  ```
+
+---
+
+# 10 — Short viva / exam Q&A
+
+Q: What does `emit()` do in a map function?
+A: Emits an intermediate (key, value) pair for grouping/shuffling.
+
+Q: How does the reduce function get its inputs?
+A: For each unique key, the reduce function receives a key and an array of intermediate values emitted for that key.
+
+Q: Why prefer aggregation over MapReduce?
+A: Aggregation is generally faster, implemented in native code, supports `$merge`/`$out`, and scales better. MapReduce runs JS and is deprecated for many use-cases.
+
+Q: What is `Array.sum()`?
+A: A helper in the server-side JS environment that sums numeric arrays (used in reduce to sum values).
+
+Q: How to avoid summing by name collisions?
+A: Use unique identifier (`cid`) as key or group by composite key (e.g., `{ cid: "$cid", cname: "$cname" }`).
+
+Q: How to get inline results without creating an output collection?
+A: Use `{ out: { inline: 1 } }` in `mapReduce` — but it's not suitable for very large outputs.
+
+---
+
+# 11 — Final checklist & copy-paste extras
+
+**Aggregation alternative with $merge** (recommended for production):
+
+```js
+db.customer.aggregate([
+  { $group: { _id: "$cid", totalAmount: { $sum: "$amount" } } },
+  { $merge: { into: "total_amount_per_customer", whenMatched: "replace", whenNotMatched: "insert" } }
+]);
+db.total_amount_per_customer.find().pretty();
+```
+
+**Index suggestion example**:
+
+```js
+db.customer.createIndex({ cid: 1 });           // for grouping by customer id (helps with pre-filtering)
+db.customer.createIndex({ product_name: 1 }); // if you query by product often
+```
+
+---
+
+If you want next, I can:
+
+* (A) give you a one-page printable summary sheet with commands + Q/A, or
+* (B) produce a prepared JS shell script that runs the MapReduce and aggregation versions and prints labeled results, or
+* (C) write a small Node.js example that runs the aggregation and writes the summarized results to a new collection.
+
+Which would you like?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Great question — sounds like you want to know how to *sort / group / rank by product* (e.g., list purchases sorted by product name, compute totals per product and sort by those totals, case-insensitive product sorting, pagination, performance tips). Below I’ll give short, copy-pasteable mongo shell examples plus explanation and best practices so you can apply them quickly.
+
+---
+
+## 1) Simple: sort documents by `product_name`
+
+```js
+// alphabetically (A → Z)
+db.customer.find().sort({ product_name: 1 }).pretty();
+
+// reverse alphabetical (Z → A)
+db.customer.find().sort({ product_name: -1 }).pretty();
+```
+
+* Use when you want individual purchase records ordered by product name.
+* If `product_name` is missing in some docs, they usually appear first/last depending on server version.
+
+---
+
+## 2) Sort by product then by amount (multi-field sort)
+
+```js
+// product name ascending, within same product amount descending
+db.customer.find().sort({ product_name: 1, amount: -1 }).pretty();
+```
+
+* Sort keys are applied in order (first key then tie-breaker keys).
+
+---
+
+## 3) Case-insensitive sorting by product name
+
+Two options:
+
+A — **Use collation** (recommended, server-side, efficient with indexes supporting collation):
+
+```js
+db.customer.find()
+  .collation({ locale: "en", strength: 2 })   // strength:2 is case-insensitive (but accent-aware)
+  .sort({ product_name: 1 })
+  .pretty();
+```
+
+B — **Lowercase in aggregation** (works without index; slower):
+
+```js
+db.customer.aggregate([
+  { $addFields: { product_lower: { $toLower: "$product_name" } } },
+  { $sort: { product_lower: 1 } },
+  { $project: { product_lower: 0 } }
+]);
+```
+
+* Prefer collation if you need performance and have MongoDB 3.4+.
+
+---
+
+## 4) Pagination (sort + skip + limit)
+
+```js
+// page 2, pageSize 10
+const page = 2, pageSize = 10;
+db.customer.find()
+  .sort({ product_name: 1 })
+  .skip((page-1)*pageSize)
+  .limit(pageSize)
+  .pretty();
+```
+
+* For large collections prefer range-based paging (using last-seen key) to avoid large `skip` cost.
+
+---
+
+## 5) Aggregate: total sales per product, sorted by total descending (top-selling products)
+
+This is very common: group purchases by product, sum amounts, sort by total.
+
+```js
+db.customer.aggregate([
+  { $group: { _id: "$product_name", totalSales: { $sum: "$amount" }, count: { $sum: 1 } } },
+  { $sort: { totalSales: -1 } },   // highest-earning products first
+  { $project: { product: "$_id", totalSales: 1, count: 1, _id: 0 } }
+]);
+```
+
+Output example:
+
+```json
+{ "product" : "Notebook", "totalSales" : 450, "count" : 2 }
+{ "product" : "Pen",      "totalSales" : 400, "count" : 1 }
+...
+```
+
+---
+
+## 6) Get top N products by total sales
+
+```js
+db.customer.aggregate([
+  { $group: { _id: "$product_name", totalSales: { $sum: "$amount" } } },
+  { $sort: { totalSales: -1 } },
+  { $limit: 5 },
+  { $project: { product: "$_id", totalSales: 1, _id: 0 } }
+]);
+```
+
+---
+
+## 7) Sort by aggregated computed field (e.g., avg price per product)
+
+```js
+db.customer.aggregate([
+  { $group: { _id: "$product_name", avgAmount: { $avg: "$amount" }, totalAmount: { $sum: "$amount" } } },
+  { $sort: { avgAmount: -1 } },   // sort by avg price descending
+  { $project: { product: "$_id", avgAmount: 1, totalAmount: 1, _id: 0 } }
+]);
+```
+
+---
+
+## 8) Filtering (only a specific product) and then sorting
+
+```js
+db.customer.find({ product_name: "Notebook" }).sort({ amount: -1 }).pretty();
+```
+
+Or aggregation with match first (recommended for efficiency):
+
+```js
+db.customer.aggregate([
+  { $match: { product_name: "Notebook" } },
+  { $sort: { amount: -1 } }
+]);
+```
+
+* Putting `$match` first reduces documents flowing through the pipeline.
+
+---
+
+## 9) Using indexes for product-based sorting/queries (performance)
+
+* Create an index on `product_name` for fast sorting and prefix queries:
+
+```js
+db.customer.createIndex({ product_name: 1 });
+```
+
+* For queries that filter and sort, create a **compound index** matching filter and sort order, e.g. filter by product and sort by amount:
+
+```js
+// If you frequently query product_name="X" and want top amounts:
+db.customer.createIndex({ product_name: 1, amount: -1 });
+```
+
+This lets MongoDB satisfy the query from the index (fast top-N).
+
+* Use `explain()` to check index usage:
+
+```js
+db.customer.find({ product_name: "Notebook" }).sort({ amount: -1 }).explain("executionStats");
+```
+
+---
+
+## 10) Case with inconsistent product naming (normalization)
+
+If your data has variants ("Notebook", "notebook", "Note-book"), normalize at write time (store canonical value) or create a derived normalized field (e.g., `product_key`) containing lowercase/normalized string and index that.
+
+Example update to add `product_key`:
+
+```js
+db.customer.updateMany({}, [
+  { $set: { product_key: { $toLower: { $trim: { input: "$product_name" } } } } }
+]);
+db.customer.createIndex({ product_key: 1 });
+```
+
+Then use `product_key` for grouping/sorting.
+
+---
+
+## 11) Sorting products by distinct metrics (count, revenue, avg price)
+
+Common metrics and how to compute & sort:
+
+* **Most purchased (by units)**:
+
+```js
+db.customer.aggregate([
+  { $group: { _id: "$product_name", unitsSold: { $sum: 1 } } },
+  { $sort: { unitsSold: -1 } }
+]);
+```
+
+* **Highest revenue (total amount)** — shown earlier using `$sum: "$amount"`.
+
+* **Highest avg spend per purchase** — use `$avg`.
+
+---
+
+## 12) Combining with time ranges (e.g., last month top products)
+
+Index `purchase_date` (example field) and use `$match` for dates before grouping:
+
+```js
+db.customer.aggregate([
+  { $match: { purchase_date: { $gte: ISODate("2025-10-01"), $lt: ISODate("2025-11-01") } } },
+  { $group: { _id: "$product_name", totalSales: { $sum: "$amount" } } },
+  { $sort: { totalSales: -1 } },
+  { $limit: 10 }
+]);
+```
+
+---
+
+## 13) If you need product-based ranking (dense rank / rank)
+
+MongoDB 5.0+ supports window functions. Example to rank products by totalSales:
+
+```js
+db.customer.aggregate([
+  { $group: { _id: "$product_name", totalSales: { $sum: "$amount" } } },
+  { $setWindowFields: {
+      sortBy: { totalSales: -1 },
+      output: { rank: { $rank: {} } }
+  }},
+  { $project: { product: "$_id", totalSales: 1, rank: 1, _id: 0 } }
+]);
+```
+
+* `rank`/`denseRank` available in `$setWindowFields`.
+
+---
+
+## 14) If you originally used MapReduce — product totals there too
+
+Map function:
+
+```js
+var map = function() { emit(this.product_name, this.amount); };
+var reduce = function(key, values) { return Array.sum(values); };
+db.customer.mapReduce(map, reduce, { out: "sales_by_product" });
+db.sales_by_product.find().pretty();
+```
+
+But prefer aggregation `$group` in most cases.
+
+---
+
+## 15) Quick checklist / best practices
+
+* Use `$match` early in pipelines to reduce data.
+* Add indexes for fields used in filters/sorts (compound index when both filter and sort).
+* Use collation for case-insensitive sorts; normalize at write-time if possible.
+* Prefer aggregation `$group` over MapReduce (faster, better supported).
+* For paging large sorted sets, prefer range queries (use last-seen key) rather than `skip`.
+* Use `$setWindowFields` for ranking when you need dense ranking.
+
+---
+
+If you want, I can now:
+
+* (A) give a ready-made script that computes **top 10 products by revenue** for the last 30 days and creates an index with explain output, **or**
+* (B) show how to normalize product names and create an index on normalized values and re-run the aggregation, **or**
+* (C) produce an example in Python (PyMongo) that runs the aggregation and prints results.
+
+Which one do you want?

@@ -1,0 +1,141 @@
+Manual PS 2
+
+
+
+ ================================================================
+   Problem Statement – SQL Practical
+   ================================================================
+   SQL Queries – all types of Join, Sub-Query and View:
+   Write at least 10 SQL queries for suitable database application 
+   using SQL DML statements.
+
+   Application Chosen: Student Management System
+================================================================= 
+
+
+================================================================
+   STEP 1: CREATE TABLES
+================================================================= 
+
+CREATE TABLE Student (
+    student_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_name VARCHAR(50) NOT NULL,
+    city VARCHAR(50),
+    class VARCHAR(10)
+);
+
+CREATE TABLE Course (
+    course_id INT PRIMARY KEY,
+    course_name VARCHAR(50) NOT NULL,
+    credits INT
+);
+
+CREATE TABLE Enrollment (
+    enroll_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT,
+    course_id INT,
+    attendance INT,
+    grade CHAR(2),
+    FOREIGN KEY (student_id) REFERENCES Student(student_id),
+    FOREIGN KEY (course_id) REFERENCES Course(course_id)
+);
+
+ ================================================================
+   STEP 2: INSERT SAMPLE DATA
+================================================================= 
+
+INSERT INTO Student (student_name, city, class) VALUES
+('Alice', 'Pune', 'FYBSc'),
+('Bob', 'Mumbai', 'SYBSc'),
+('Charlie', 'Nashik', 'TYBSc'),
+('David', 'Pune', 'SYBSc'),
+('Eva', 'Nagpur', 'FYBSc');
+
+INSERT INTO Course VALUES
+(101, 'Database Systems', 4),
+(102, 'Operating Systems', 3),
+(103, 'Computer Networks', 3),
+(104, 'Data Structures', 4);
+
+INSERT INTO Enrollment (student_id, course_id, attendance, grade) VALUES
+(1, 101, 85, 'A'),
+(2, 102, 70, 'B'),
+(3, 103, 90, 'A'),
+(1, 104, 80, 'B'),
+(4, 101, 75, 'C');
+
+================================================================
+   STEP 3: QUERIES DEMONSTRATING ALL TYPES OF JOINS, SUBQUERIES, AND VIEW
+================================================================= 
+
+-- 1️⃣ INNER JOIN: Show student names with their enrolled course names
+SELECT s.student_name, c.course_name
+FROM Student s
+INNER JOIN Enrollment e ON s.student_id = e.student_id
+INNER JOIN Course c ON e.course_id = c.course_id;
+
+-- 2️⃣ LEFT JOIN: Show all students and their enrolled course names (even if not enrolled)
+SELECT s.student_name, c.course_name
+FROM Student s
+LEFT JOIN Enrollment e ON s.student_id = e.student_id
+LEFT JOIN Course c ON e.course_id = c.course_id;
+
+-- 3️⃣ RIGHT JOIN: Show all courses and students enrolled (even if no student enrolled)
+SELECT s.student_name, c.course_name
+FROM Student s
+RIGHT JOIN Enrollment e ON s.student_id = e.student_id
+RIGHT JOIN Course c ON e.course_id = c.course_id;
+
+-- 4️⃣ CROSS JOIN: Show all possible student–course combinations
+SELECT s.student_name, c.course_name
+FROM Student s
+CROSS JOIN Course c;
+
+-- 5️⃣ SELF JOIN: Show students from the same city
+SELECT A.student_name AS Student1, B.student_name AS Student2, A.city
+FROM Student A
+JOIN Student B ON A.city = B.city AND A.student_id <> B.student_id;
+
+-- 6️⃣ SUBQUERY (IN): Find students who have enrolled in any course
+SELECT student_name 
+FROM Student 
+WHERE student_id IN (SELECT student_id FROM Enrollment);
+
+-- 7️⃣ SUBQUERY (NOT IN): Find students who have NOT enrolled in any course
+SELECT student_name 
+FROM Student 
+WHERE student_id NOT IN (SELECT student_id FROM Enrollment);
+
+-- 8️⃣ SUBQUERY (Aggregate): Find the student(s) with maximum attendance
+SELECT student_name 
+FROM Student 
+WHERE student_id IN (
+    SELECT student_id FROM Enrollment 
+    WHERE attendance = (SELECT MAX(attendance) FROM Enrollment)
+);
+
+-- 9️⃣ CORRELATED SUBQUERY: Find students whose attendance is above the average attendance of their courses
+SELECT s.student_name, e.attendance
+FROM Student s
+JOIN Enrollment e ON s.student_id = e.student_id
+WHERE e.attendance > (
+    SELECT AVG(e2.attendance) 
+    FROM Enrollment e2 
+    WHERE e2.course_id = e.course_id
+);
+
+-- 🔟 VIEW: Create and use a view for student performance summary
+CREATE VIEW student_summary AS
+SELECT s.student_name, c.course_name, e.attendance, e.grade
+FROM Student s
+JOIN Enrollment e ON s.student_id = e.student_id
+JOIN Course c ON e.course_id = c.course_id;
+
+-- Display the data from the view
+SELECT * FROM student_summary;
+
+================================================================
+   END OF PRACTICAL
+=================================================================
+
+

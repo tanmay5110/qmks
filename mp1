@@ -1,0 +1,162 @@
+Manual PS 1
+
+
+/* ================================================================
+   Problem Statement – SQL Practical
+   ================================================================
+   Design and Develop SQL DDL statements which demonstrate the use of 
+   SQL objects such as Table, View, Index, Synonym, different Constraints etc. 
+
+   Also, write at least 10 SQL queries on a suitable database 
+   application using SQL DML statements.
+
+   Application Chosen: Student Management System
+================================================================= */
+
+
+/* ================================================================
+   STEP 1: CREATE TABLES WITH CONSTRAINTS
+================================================================= */
+
+CREATE TABLE Student (
+    student_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_name VARCHAR(50) NOT NULL,
+    class VARCHAR(10),
+    address VARCHAR(100),
+    date_of_birth DATE,
+    email VARCHAR(50) UNIQUE
+);
+
+CREATE TABLE Course (
+    course_id INT PRIMARY KEY,
+    course_name VARCHAR(50) NOT NULL,
+    credits INT CHECK (credits BETWEEN 1 AND 5)
+);
+
+CREATE TABLE Enrollment (
+    enroll_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT,
+    course_id INT,
+    attendance INT CHECK (attendance BETWEEN 0 AND 100),
+    grade CHAR(2),
+    FOREIGN KEY (student_id) REFERENCES Student(student_id),
+    FOREIGN KEY (course_id) REFERENCES Course(course_id)
+);
+
+/* ================================================================
+   STEP 2: CREATE AN INDEX ON STUDENT NAME
+================================================================= */
+
+CREATE INDEX idx_student_name
+ON Student(student_name);
+
+/* ================================================================
+   STEP 3: CREATE A VIEW FOR STUDENT PERFORMANCE
+================================================================= */
+
+CREATE VIEW student_performance_view AS
+SELECT 
+    s.student_id,
+    s.student_name,
+    c.course_name,
+    e.attendance,
+    e.grade
+FROM 
+    Student s
+JOIN 
+    Enrollment e ON s.student_id = e.student_id
+JOIN 
+    Course c ON e.course_id = c.course_id;
+
+/* ================================================================
+   STEP 4: CREATE A SYNONYM FOR STUDENT TABLE
+   (Note: MySQL/MariaDB does not support CREATE SYNONYM directly,
+    so we use an alias in queries instead.)
+================================================================= */
+-- In MySQL/MariaDB synonym is not supported, 
+-- we can simulate it by using a VIEW as an alias.
+CREATE VIEW stud AS SELECT * FROM Student;
+
+/* ================================================================
+   STEP 5: INSERT SAMPLE DATA USING DML STATEMENTS
+================================================================= */
+
+-- Insert into Student table (AUTO_INCREMENT handles IDs)
+
+INSERT INTO Student (student_name, class, address, date_of_birth, email)
+VALUES 
+('Alice', 'FYBSc', 'Pune', '2005-01-15', 'alice@gmail.com'),
+('Bob', 'SYBSc', 'Mumbai', '2004-09-20', 'bob@gmail.com'),
+('Charlie', 'TYBSc', 'Nashik', '2003-05-12', 'charlie@gmail.com');
+
+-- Insert into Course table
+
+INSERT INTO Course VALUES 
+(101, 'Database Systems', 4),
+(102, 'Operating Systems', 3),
+(103, 'Computer Networks', 3);
+
+-- Insert into Enrollment table
+
+INSERT INTO Enrollment (student_id, course_id, attendance, grade) VALUES
+(1, 101, 85, 'A'),
+(2, 102, 75, 'B'),
+(3, 103, 65, 'C'),
+(1, 103, 90, 'A');
+
+/* ================================================================
+   STEP 6: EXECUTE 10 DML QUERIES
+================================================================= */
+
+-- 1. Display all student details
+SELECT * FROM Student;
+
+-- 2. Display students with attendance above 80%
+
+SELECT s.student_name, e.attendance
+FROM Student s 
+JOIN Enrollment e ON s.student_id = e.student_id
+WHERE e.attendance > 80;
+
+-- 3. List all courses with credits more than 3
+
+SELECT * FROM Course WHERE credits > 3;
+
+-- 4. Find total number of students enrolled in each course
+
+SELECT c.course_name, COUNT(e.student_id) AS total_students
+FROM Course c
+JOIN Enrollment e ON c.course_id = e.course_id
+GROUP BY c.course_name;
+
+-- 5. Display student names along with their grades
+
+SELECT s.student_name, e.grade
+FROM Student s
+JOIN Enrollment e ON s.student_id = e.student_id;
+
+-- 6. Update the attendance of a student
+
+UPDATE Enrollment 
+SET attendance = 95
+WHERE enroll_id = 2;
+
+-- 7. Delete a student who has left the course
+
+DELETE FROM Student WHERE student_id = 3;
+
+-- 8. Display students and their enrolled course names using the view
+SELECT * FROM student_performance_view;
+
+-- 9. Retrieve details using synonym (here simulated with view 'stud')
+SELECT student_name, email FROM stud;
+
+-- 10. Display highest attendance per course
+SELECT c.course_name, MAX(e.attendance) AS max_attendance
+FROM Course c
+JOIN Enrollment e ON c.course_id = e.course_id
+GROUP BY c.course_name;
+
+/* ================================================================
+   END OF PRACTICAL
+================================================================= */
